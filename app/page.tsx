@@ -32,7 +32,7 @@ import {
   Upload,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { createBackup, loadAppState, parseBackup, restoreAppState, saveAppState } from '@/lib/storage';
 import { FALLBACK_EXERCISES, imageUrl, loadCatalog, toSnapshot } from '@/lib/catalog';
 import type {
@@ -321,6 +321,10 @@ function sourceLabel(source: CatalogSource) {
   return '40 compostos offline';
 }
 
+function isValidBuildId(value: unknown): value is string {
+  return typeof value === 'string' && /^[a-zA-Z0-9._-]{1,80}$/.test(value);
+}
+
 export default function Home() {
   const [state, setState] = useState<AppState>(EMPTY_STATE);
   const [catalog, setCatalog] = useState<CatalogExercise[]>(FALLBACK_EXERCISES);
@@ -339,6 +343,9 @@ export default function Home() {
   const [pickerSessionExerciseId, setPickerSessionExerciseId] = useState<string | null>(null);
   const [draft, setDraft] = useState<PlanDraft | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [updateReady, setUpdateReady] = useState(false);
+  const serviceWorkerRegistrationRef = useRef<ServiceWorkerRegistration | null>(null);
+  const reloadAfterServiceWorkerUpdateRef = useRef(false);
 
   const notify = useCallback((message: string) => setToast(message), []);
 
@@ -376,8 +383,65 @@ export default function Home() {
         notify('Comecei com um espaço local novo.');
       });
 
+    let disposeServiceWorker: (() => void) | undefined;
     if ('serviceWorker' in navigator) {
-      void navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+      const registerServiceWorker = async () => {
+        let buildId = 'dev';
+        try {
+          const response = await fetch(`/build-meta.json?ts=${Date.now()}`, { cache: 'no-store' });
+          if (response.ok) {
+            const payload: unknown = await response.json();
+            if (payload && typeof payload === 'object' && 'buildId' in payload && isValidBuildId(payload.buildId)) {
+              buildId = payload.buildId;
+            }
+          }
+        } catch {
+          // Offline startup can use the existing worker and its cached shell.
+        }
+        if (!mounted) return;
+
+        try {
+          const registration = await navigator.serviceWorker.register(`/sw.js?build=${encodeURIComponent(buildId)}`, { updateViaCache: 'none' });
+          if (!mounted) return;
+          serviceWorkerRegistrationRef.current = registration;
+          const announceUpdate = () => {
+            if (mounted && navigator.serviceWorker.controller) setUpdateReady(true);
+          };
+          if (registration.waiting) announceUpdate();
+          const workerStateHandlers = new Map<ServiceWorker, () => void>();
+          const onUpdateFound = () => {
+            const worker = registration.installing;
+            if (!worker) return;
+            const onStateChange = () => {
+              if (worker.state === 'installed') announceUpdate();
+            };
+            workerStateHandlers.set(worker, onStateChange);
+            worker.addEventListener('statechange', onStateChange);
+          };
+          const onControllerChange = () => {
+            if (reloadAfterServiceWorkerUpdateRef.current) window.location.reload();
+          };
+          registration.addEventListener('updatefound', onUpdateFound);
+          navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
+          serviceWorkerRegistrationRef.current = registration;
+          return () => {
+            registration.removeEventListener('updatefound', onUpdateFound);
+            navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
+            workerStateHandlers.forEach((handler, worker) => worker.removeEventListener('statechange', handler));
+            workerStateHandlers.clear();
+          };
+        } catch {
+          // A browser may reject service workers in private or restricted contexts.
+        }
+        return undefined;
+      };
+      void registerServiceWorker().then((dispose) => {
+        if (!mounted) {
+          dispose?.();
+          return;
+        }
+        disposeServiceWorker = dispose;
+      });
     }
 
     const updateViewport = () => {
@@ -388,6 +452,9 @@ export default function Home() {
     window.visualViewport?.addEventListener('resize', updateViewport);
     return () => {
       mounted = false;
+      disposeServiceWorker?.();
+      serviceWorkerRegistrationRef.current = null;
+      reloadAfterServiceWorkerUpdateRef.current = false;
       window.visualViewport?.removeEventListener('resize', updateViewport);
     };
   }, [notify]);
@@ -732,6 +799,27 @@ export default function Home() {
     );
   }
 
+  function applyServiceWorkerUpdate() {
+    const waiting = serviceWorkerRegistrationRef.current?.waiting;
+    if (!waiting) {
+      setUpdateReady(false);
+      void serviceWorkerRegistrationRef.current?.update();
+      return;
+    }
+    reloadAfterServiceWorkerUpdateRef.current = true;
+    waiting.postMessage({ type: 'SKIP_WAITING' });
+  }
+
+  function renderUpdateBanner() {
+    if (!updateReady) return null;
+    return (
+      <output className="update-banner" aria-live="polite">
+        <div className="update-banner-copy"><strong>Nova versão disponível</strong><span>Atualize o GymSheet sem apagar seus treinos.</span></div>
+        <div className="update-banner-actions"><button className="btn btn-primary btn-small" type="button" onClick={applyServiceWorkerUpdate}>Atualizar agora</button><button className="btn btn-quiet btn-small" type="button" onClick={() => setUpdateReady(false)}>Depois</button></div>
+      </output>
+    );
+  }
+
   function renderWarning() {
     if (!catalogMeta.error) return null;
     const isFallback = catalogMeta.source === 'fallback';
@@ -896,7 +984,7 @@ export default function Home() {
     return <main className="app-main" style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center' }}><div className="surface empty" style={{ width: '100%' }}><div className="empty-icon"><Dumbbell size={24} /></div><h2>Preparando seu treino</h2><p>Carregando o catálogo e seus dados locais.</p></div></main>;
   }
 
-  if (sessionViewId) return <>{renderSession()}{renderPlanModal()}{renderPickerModal()}{toast && <output className="toast" aria-live="polite">{toast}</output>}</>;
+  if (sessionViewId) return <>{renderSession()}{renderPlanModal()}{renderPickerModal()}{toast && <output className="toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</>;
 
-  return <div className="app-shell">{renderHeader()}{catalogLoading && <div className="app-main" style={{ paddingTop: 0 }}><p style={{ color: 'var(--muted)', fontSize: 11 }}>Sincronizando catálogo…</p></div>}{tab === 'today' && renderToday()}{tab === 'folder' && renderFolder()}{tab === 'week' && renderWeek()} {tab === 'data' && renderData()}<nav className="bottom-nav" aria-label="Navegação principal"><div className="bottom-nav-inner"><button className={`nav-item ${tab === 'today' ? 'active' : ''}`} type="button" onClick={() => setTab('today')}><Activity size={19} /><span>Hoje</span></button><button className={`nav-item ${tab === 'folder' ? 'active' : ''}`} type="button" onClick={() => setTab('folder')}><FolderOpen size={19} /><span>Pasta</span></button><button className={`nav-item ${tab === 'week' ? 'active' : ''}`} type="button" onClick={() => setTab('week')}><CalendarDays size={19} /><span>Semana</span></button><button className={`nav-item ${tab === 'data' ? 'active' : ''}`} type="button" onClick={() => setTab('data')}><Database size={19} /><span>Dados</span></button></div></nav>{renderPlanModal()}{renderPickerModal()}{toast && <output className="toast" aria-live="polite">{toast}</output>}</div>;
+  return <div className="app-shell">{renderHeader()}{catalogLoading && <div className="app-main" style={{ paddingTop: 0 }}><p style={{ color: 'var(--muted)', fontSize: 11 }}>Sincronizando catálogo…</p></div>}{tab === 'today' && renderToday()}{tab === 'folder' && renderFolder()}{tab === 'week' && renderWeek()} {tab === 'data' && renderData()}<nav className="bottom-nav" aria-label="Navegação principal"><div className="bottom-nav-inner"><button className={`nav-item ${tab === 'today' ? 'active' : ''}`} type="button" onClick={() => setTab('today')}><Activity size={19} /><span>Hoje</span></button><button className={`nav-item ${tab === 'folder' ? 'active' : ''}`} type="button" onClick={() => setTab('folder')}><FolderOpen size={19} /><span>Pasta</span></button><button className={`nav-item ${tab === 'week' ? 'active' : ''}`} type="button" onClick={() => setTab('week')}><CalendarDays size={19} /><span>Semana</span></button><button className={`nav-item ${tab === 'data' ? 'active' : ''}`} type="button" onClick={() => setTab('data')}><Database size={19} /><span>Dados</span></button></div></nav>{renderPlanModal()}{renderPickerModal()}{toast && <output className="toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</div>;
 }
