@@ -27,4 +27,8 @@ npm run lint
 npm run build
 ```
 
+## Fluxo de entrega
+
+Branches curtas (`feat/*`, `fix/*`) entram por PR em `main`. O CI executa lint, TypeScript e build; `main` é a produção e cada merge publica uma nova versão. O teste principal depois do merge é feito no Android.
+
 O catálogo e as imagens de exercícios são carregados do projeto [free-exercise-db](https://github.com/yuhonas/free-exercise-db). Consulte o repositório de origem para os respectivos termos e créditos.
