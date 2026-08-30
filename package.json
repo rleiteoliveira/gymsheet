@@ -12,6 +12,7 @@
     "start": "wrangler dev --config dist/server/wrangler.json",
     "test": "vitest run --config vitest.config.ts",
     "test:e2e": "playwright test",
+    "verify:build": "node scripts/verify-build-output.mjs",
     "lint": "oxlint app lib public/sw.js",
     "format": "oxfmt"
   },

@@ -1,7 +1,7 @@
 # Slice 23 — Hoje focado no treino
 
 - Issue: #23
-- Status: doing
+- Status: done
 - Cabe no próximo treino? sim — depois do slice #21 entrar na `main`
 
 ## Direção visual

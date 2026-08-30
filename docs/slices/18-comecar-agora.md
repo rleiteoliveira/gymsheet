@@ -1,7 +1,7 @@
 # Slice 18 — começar treino agora
 
 - Issue: #18
-- Status: doing
+- Status: done
 - Cabe no próximo treino? sim
 
 ## Faz
