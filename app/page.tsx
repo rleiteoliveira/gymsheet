@@ -35,6 +35,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { createBackup, loadAppState, parseBackup, restoreAppState, saveAppState } from '@/lib/storage';
 import { FALLBACK_EXERCISES, imageUrl, loadCatalog, toSnapshot } from '@/lib/catalog';
+import { filterCatalogExercises, muscleGroupsForCatalog } from '@/lib/catalog-filter';
 import {
   applySessionEdit,
   clonePlanExercise,
@@ -92,14 +93,6 @@ function clonePlan(plan: Plan): PlanDraft {
     name: plan.name,
     exercises: plan.exercises.map(clonePlanExercise),
   };
-}
-
-function normalizeText(value: string) {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim();
 }
 
 function startOfCurrentWeek(now = new Date()) {
@@ -161,16 +154,21 @@ function localizeEquipment(value: string | null) {
 function localizeMuscle(value: string | undefined) {
   const labels: Record<string, string> = {
     abdominals: 'abdômen',
+    abductors: 'abdutores',
+    adductors: 'adutores',
     biceps: 'bíceps',
     calves: 'panturrilhas',
     chest: 'peito',
+    forearms: 'antebraços',
     glutes: 'glúteos',
     hamstrings: 'posteriores',
     lats: 'dorsais',
     'lower back': 'lombar',
     'middle back': 'costas',
+    neck: 'pescoço',
     quadriceps: 'quadríceps',
     shoulders: 'ombros',
+    traps: 'trapézio',
     triceps: 'tríceps',
   };
   return value ? labels[value] ?? value : 'força';
@@ -334,6 +332,7 @@ export default function Home() {
   const [modal, setModal] = useState<Modal>(null);
   const [pickerMode, setPickerMode] = useState<PickerMode>('plan');
   const [pickerSearch, setPickerSearch] = useState('');
+  const [pickerMuscleGroups, setPickerMuscleGroups] = useState<string[]>([]);
   const [pickerSessionExerciseId, setPickerSessionExerciseId] = useState<string | null>(null);
   const [draft, setDraft] = useState<PlanDraft | null>(null);
   const [pendingSessionStart, setPendingSessionStart] = useState<PendingSessionStart | null>(null);
@@ -466,16 +465,12 @@ export default function Home() {
   const today = new Date();
   const weekStats = useMemo(() => getWeekStats(state.sessions), [state.sessions]);
   const recentSessions = useMemo(() => [...state.sessions].sort((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, 5), [state.sessions]);
-  const filteredPicker = useMemo(() => {
-    const query = normalizeText(pickerSearch);
-    return catalog
-      .filter((exercise) => {
-        if (!query) return true;
-        return normalizeText(`${exercise.name} ${exercise.equipment ?? ''} ${exercise.primaryMuscles.join(' ')}`).includes(query);
-      })
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .slice(0, 80);
-  }, [catalog, pickerSearch]);
+  const pickerMuscleOptions = useMemo(() => muscleGroupsForCatalog(catalog), [catalog]);
+  const pickerMatches = useMemo(
+    () => filterCatalogExercises(catalog, pickerSearch, pickerMuscleGroups),
+    [catalog, pickerMuscleGroups, pickerSearch],
+  );
+  const filteredPicker = pickerMatches.slice(0, 80);
 
   function openPlanEditor(plan?: Plan) {
     setDraft(plan ? clonePlan(plan) : { name: '', exercises: [] });
@@ -486,7 +481,14 @@ export default function Home() {
     setPickerMode(mode);
     setPickerSessionExerciseId(sessionExerciseId ?? null);
     setPickerSearch('');
+    setPickerMuscleGroups([]);
     setModal('picker');
+  }
+
+  function togglePickerMuscle(groupId: string) {
+    setPickerMuscleGroups((current) => current.includes(groupId)
+      ? current.filter((item) => item !== groupId)
+      : [...current, groupId]);
   }
 
   function pinPlan(planId: string) {
@@ -1015,7 +1017,33 @@ export default function Home() {
   function renderPickerModal() {
     if (modal !== 'picker') return null;
     const title = pickerMode === 'plan' ? 'Adicionar à ficha' : pickerMode === 'swap' ? 'Trocar exercício' : 'Adicionar na sessão';
-    return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setModal(null); }}><dialog open className="modal" aria-modal="true" aria-labelledby="picker-modal-title"><div className="modal-head"><div><h2 id="picker-modal-title">{title}</h2><p>Pesquise pelo nome, músculo ou equipamento.</p></div><button className="btn btn-quiet btn-icon" type="button" onClick={() => setModal(null)} aria-label="Fechar"><X size={20} /></button></div><div className="search-row"><Search size={19} color="var(--muted)" style={{ margin: 14 }} /><input autoFocus className="text-input" type="search" placeholder="Buscar exercício" value={pickerSearch} onChange={(event) => setPickerSearch(event.target.value)} /></div><div className="picker-list">{filteredPicker.map((exercise) => <button className="picker-item" type="button" key={exercise.id} onClick={() => handleCatalogPick(exercise)}><ExerciseImage src={exercise.images[0]} alt={exercise.name} /><div><strong>{exercise.name}</strong><span>{localizeMuscle(exercise.primaryMuscles[0])} · {localizeEquipment(exercise.equipment)}</span></div><ChevronRight size={17} color="var(--muted)" /></button>)}{filteredPicker.length === 0 && <div className="empty"><Search size={24} color="var(--muted)" /><p>Nenhum exercício encontrado.</p></div>}</div></dialog></div>;
+    const showingAllMatches = filteredPicker.length < pickerMatches.length;
+    return (
+      <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setModal(null); }}>
+        <dialog open className="modal" aria-modal="true" aria-labelledby="picker-modal-title">
+          <div className="modal-head">
+            <div>
+              <h2 id="picker-modal-title">{title}</h2>
+              <p>Pesquise pelo nome, músculo ou equipamento.</p>
+            </div>
+            <button className="btn btn-quiet btn-icon" type="button" onClick={() => setModal(null)} aria-label="Fechar"><X size={20} /></button>
+          </div>
+          <div className="search-row">
+            <Search size={19} color="var(--muted)" style={{ margin: 14 }} />
+            <input autoFocus className="text-input" type="search" placeholder="Buscar exercício" value={pickerSearch} onChange={(event) => setPickerSearch(event.target.value)} />
+          </div>
+          <div className="picker-filter" aria-label="Filtrar por grupo muscular">
+            <div className="picker-filter-head"><span>Grupo muscular</span>{pickerMuscleGroups.length > 0 && <button className="btn btn-quiet btn-small" type="button" onClick={() => setPickerMuscleGroups([])}>Limpar</button>}</div>
+            <fieldset className="muscle-chips" aria-label="Grupos musculares">
+              <button className={`muscle-chip ${pickerMuscleGroups.length === 0 ? 'active' : ''}`} type="button" aria-pressed={pickerMuscleGroups.length === 0} onClick={() => setPickerMuscleGroups([])}>Todos</button>
+              {pickerMuscleOptions.map((group) => <button className={`muscle-chip ${pickerMuscleGroups.includes(group.id) ? 'active' : ''}`} type="button" key={group.id} aria-pressed={pickerMuscleGroups.includes(group.id)} onClick={() => togglePickerMuscle(group.id)}>{group.label}</button>)}
+            </fieldset>
+          </div>
+          <p className="picker-count" aria-live="polite">{pickerMatches.length} exercício{pickerMatches.length === 1 ? '' : 's'} encontrado{pickerMatches.length === 1 ? '' : 's'}{showingAllMatches ? ' · refine a busca para ver menos' : ''}</p>
+          <div className="picker-list">{filteredPicker.map((exercise) => <button className="picker-item" type="button" key={exercise.id} onClick={() => handleCatalogPick(exercise)}><ExerciseImage src={exercise.images[0]} alt={exercise.name} /><div><strong>{exercise.name}</strong><span>{localizeMuscle(exercise.primaryMuscles[0])} · {localizeEquipment(exercise.equipment)}</span></div><ChevronRight size={17} color="var(--muted)" /></button>)}{filteredPicker.length === 0 && <div className="empty"><Search size={24} color="var(--muted)" /><p>Nenhum exercício encontrado.</p></div>}</div>
+        </dialog>
+      </div>
+    );
   }
 
   if (!ready) {
