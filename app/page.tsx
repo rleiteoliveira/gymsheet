@@ -35,6 +35,15 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { createBackup, loadAppState, parseBackup, restoreAppState, saveAppState } from '@/lib/storage';
 import { FALLBACK_EXERCISES, imageUrl, loadCatalog, toSnapshot } from '@/lib/catalog';
+import {
+  applySessionEdit,
+  clonePlanExercise,
+  completeSession,
+  createSessionFromPlan,
+  decideSessionStart,
+  localCivilDateTime,
+  localCivilDateKey as localDateKey,
+} from '@/lib/session';
 import type {
   AppState,
   CatalogExercise,
@@ -65,23 +74,16 @@ interface CatalogState {
   error?: string;
 }
 
+interface PendingSessionStart {
+  previousSessionId: string;
+  planId: string | null;
+}
+
 const EMPTY_STATE: AppState = { plans: [], sessions: [], todayPin: null };
 
 function makeId() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-function clonePlanExercise(exercise: PlanExercise): PlanExercise {
-  return {
-    ...exercise,
-    exercise: {
-      ...exercise.exercise,
-      primaryMuscles: [...exercise.exercise.primaryMuscles],
-      images: [...exercise.exercise.images],
-      instructions: [...exercise.exercise.instructions],
-    },
-  };
 }
 
 function clonePlan(plan: Plan): PlanDraft {
@@ -98,14 +100,6 @@ function normalizeText(value: string) {
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .trim();
-}
-
-function localDateKey(input: string | Date) {
-  const date = typeof input === 'string' ? new Date(input) : input;
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, '0');
-  const day = `${date.getDate()}`.padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }
 
 function startOfCurrentWeek(now = new Date()) {
@@ -280,8 +274,8 @@ function buildCsv(sessions: Session[]) {
       const base = [
         session.id,
         session.state,
-        session.startedAt,
-        session.completedAt ?? null,
+        localCivilDateTime(session.startedAt),
+        session.completedAt ? localCivilDateTime(session.completedAt) : null,
         session.sourcePlanId ?? null,
         session.sourcePlanName ?? null,
         exercise.order + 1,
@@ -342,6 +336,7 @@ export default function Home() {
   const [pickerSearch, setPickerSearch] = useState('');
   const [pickerSessionExerciseId, setPickerSessionExerciseId] = useState<string | null>(null);
   const [draft, setDraft] = useState<PlanDraft | null>(null);
+  const [pendingSessionStart, setPendingSessionStart] = useState<PendingSessionStart | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [updateReady, setUpdateReady] = useState(false);
   const serviceWorkerRegistrationRef = useRef<ServiceWorkerRegistration | null>(null);
@@ -509,40 +504,63 @@ export default function Home() {
   }
 
   function startSession(plan?: Plan) {
-    const existing = state.sessions.find((session) => session.state === 'in_progress');
-    if (existing) {
-      setSessionViewId(existing.id);
+    const selectedPlan = plan ?? pinnedPlan;
+    const decision = decideSessionStart(state.sessions, new Date());
+    if (decision.kind === 'resume-today') {
+      setSessionViewId(decision.session.id);
       setActiveExerciseId(null);
       return;
     }
-    const selectedPlan = plan ?? pinnedPlan;
-    const sessionId = makeId();
-    const session: Session = {
-      id: sessionId,
-      sourcePlanId: selectedPlan?.id ?? null,
-      sourcePlanName: selectedPlan?.name ?? null,
-      state: 'in_progress',
-      startedAt: new Date().toISOString(),
-      completedAt: null,
-      exercises: selectedPlan
-        ? selectedPlan.exercises.map((exercise, index) => ({
-            id: makeId(),
-            order: index,
-            planned: clonePlanExercise(exercise),
-            performed: null,
-            status: null,
-            sets: [],
-          }))
-        : [],
-    };
+    if (decision.kind === 'choose-previous') {
+      setPendingSessionStart({
+        previousSessionId: decision.session.id,
+        planId: selectedPlan?.id ?? null,
+      });
+      return;
+    }
+    const session = createSessionFromPlan(selectedPlan, new Date(), makeId);
     mutate((current) => ({
       ...current,
       sessions: [...current.sessions, session],
-      todayPin: { kind: 'session', id: sessionId },
+      todayPin: { kind: 'session', id: session.id },
     }));
-    setSessionViewId(sessionId);
+    setSessionViewId(session.id);
     setActiveExerciseId(null);
     notify(selectedPlan ? `Sessão ${selectedPlan.name} começou.` : 'Sessão vazia começou.');
+  }
+
+  function resumePreviousSession() {
+    if (!pendingSessionStart) return;
+    const previous = state.sessions.find((session) => session.id === pendingSessionStart.previousSessionId);
+    setPendingSessionStart(null);
+    if (previous) {
+      setSessionViewId(previous.id);
+      setActiveExerciseId(null);
+    }
+  }
+
+  function completePreviousAndStartToday() {
+    if (!pendingSessionStart) return;
+    const now = new Date();
+    const selectedPlan = pendingSessionStart.planId
+      ? state.plans.find((plan) => plan.id === pendingSessionStart.planId)
+      : undefined;
+    const nextSession = createSessionFromPlan(selectedPlan, now, makeId);
+    const previousSessionId = pendingSessionStart.previousSessionId;
+    mutate((current) => ({
+      ...current,
+      sessions: [
+        ...current.sessions.map((session) =>
+          session.id === previousSessionId ? completeSession(session, now) : session,
+        ),
+        nextSession,
+      ],
+      todayPin: { kind: 'session', id: nextSession.id },
+    }));
+    setPendingSessionStart(null);
+    setSessionViewId(nextSession.id);
+    setActiveExerciseId(null);
+    notify(selectedPlan ? `Sessão ${selectedPlan.name} começou hoje.` : 'Sessão vazia começou hoje.');
   }
 
   function selectExerciseForRegister(exercise: SessionExercise) {
@@ -571,16 +589,10 @@ export default function Home() {
       ...current,
       sessions: current.sessions.map((session) => {
         if (session.id !== activeSession.id) return session;
-        return {
-          ...session,
-          exercises: session.exercises.map((exercise) => {
-            if (exercise.id !== activeExerciseId) return exercise;
-            const status = exercise.status ?? (exercise.planned ? 'done' : 'added');
-            const performed = exercise.performed ?? exercise.planned?.exercise ?? null;
-            const set: SetRecord = { id: makeId(), index: exercise.sets.length + 1, kg, reps, savedAt: now };
-            return { ...exercise, status, performed, sets: [...exercise.sets, set] };
-          }),
-        };
+        const exercise = session.exercises.find((item) => item.id === activeExerciseId);
+        if (!exercise) return session;
+        const set: SetRecord = { id: makeId(), index: exercise.sets.length + 1, kg, reps, savedAt: now };
+        return applySessionEdit(session, { type: 'save-set', exerciseId: activeExerciseId, set });
       }),
     }));
     notify('Série salva.');
@@ -589,10 +601,9 @@ export default function Home() {
   function markSkipped(exerciseId: string) {
     mutate((current) => ({
       ...current,
-      sessions: current.sessions.map((session) => session.id !== sessionViewId ? session : {
-        ...session,
-        exercises: session.exercises.map((exercise) => exercise.id !== exerciseId ? exercise : { ...exercise, status: 'skipped', performed: null, sets: [] }),
-      }),
+      sessions: current.sessions.map((session) =>
+        session.id !== sessionViewId ? session : applySessionEdit(session, { type: 'skip', exerciseId }),
+      ),
     }));
     if (activeExerciseId === exerciseId) setActiveExerciseId(null);
     notify('Exercício marcado como pulado.');
@@ -601,10 +612,9 @@ export default function Home() {
   function undoExercise(exerciseId: string) {
     mutate((current) => ({
       ...current,
-      sessions: current.sessions.map((session) => session.id !== sessionViewId ? session : {
-        ...session,
-        exercises: session.exercises.map((exercise) => exercise.id !== exerciseId ? exercise : { ...exercise, status: null, performed: null, sets: [] }),
-      }),
+      sessions: current.sessions.map((session) =>
+        session.id !== sessionViewId ? session : applySessionEdit(session, { type: 'undo', exerciseId }),
+      ),
     }));
     if (activeExerciseId === exerciseId) setActiveExerciseId(null);
     notify('Status desfeito.');
@@ -619,16 +629,13 @@ export default function Home() {
       notify('Salve ao menos uma série nos exercícios trocados ou adicionados.');
       return;
     }
-    const completedAt = new Date().toISOString();
+    const completedAt = new Date();
     mutate((current) => ({
       ...current,
       todayPin: current.todayPin?.kind === 'session' && current.todayPin.id === activeSession.id ? null : current.todayPin,
-      sessions: current.sessions.map((session) => session.id !== activeSession.id ? session : {
-        ...session,
-        state: 'completed',
-        completedAt,
-        exercises: session.exercises.map((exercise) => exercise.status === null ? { ...exercise, status: 'skipped' } : exercise),
-      }),
+      sessions: current.sessions.map((session) =>
+        session.id !== activeSession.id ? session : completeSession(session, completedAt),
+      ),
     }));
     setSessionViewId(null);
     setActiveExerciseId(null);
@@ -711,10 +718,15 @@ export default function Home() {
     if (pickerMode === 'swap' && pickerSessionExerciseId) {
       mutate((current) => ({
         ...current,
-        sessions: current.sessions.map((session) => session.id !== sessionViewId ? session : {
-          ...session,
-          exercises: session.exercises.map((item) => item.id !== pickerSessionExerciseId ? item : { ...item, status: 'swapped', performed: toSnapshot(exercise), sets: [] }),
-        }),
+        sessions: current.sessions.map((session) =>
+          session.id !== sessionViewId
+            ? session
+            : applySessionEdit(session, {
+                type: 'swap',
+                exerciseId: pickerSessionExerciseId,
+                performed: toSnapshot(exercise),
+              }),
+        ),
       }));
       setActiveExerciseId(pickerSessionExerciseId);
       setComposerKg('');
@@ -734,7 +746,9 @@ export default function Home() {
     };
     mutate((current) => ({
       ...current,
-      sessions: current.sessions.map((session) => session.id !== sessionViewId ? session : { ...session, exercises: [...session.exercises, next] }),
+      sessions: current.sessions.map((session) =>
+        session.id !== sessionViewId ? session : applySessionEdit(session, { type: 'add', exercise: next }),
+      ),
     }));
     setActiveExerciseId(next.id);
     setComposerKg('');
@@ -857,7 +871,7 @@ export default function Home() {
             <div className="pin-top"><span className="pin-label"><Activity size={14} /> Sessão em andamento</span><span className="pin-meta">{pinnedProgress}</span></div>
             <h2 className="pin-name">{pinnedSession.sourcePlanName ?? 'Sessão vazia'}</h2>
             <p className="pin-detail">Começou {formatDateTime(pinnedSession.startedAt)}. Retome de onde parou.</p>
-            <div className="pin-actions"><button className="btn btn-primary" type="button" onClick={() => { setSessionViewId(pinnedSession.id); setActiveExerciseId(null); }}><Play size={17} fill="currentColor" /> Retomar sessão</button><button className="btn btn-quiet" type="button" onClick={() => discardSession(pinnedSession.id)}><Trash2 size={16} /> Descartar</button></div>
+            <div className="pin-actions"><button className="btn btn-primary" type="button" onClick={() => startSession(pinnedSession.sourcePlanId ? state.plans.find((plan) => plan.id === pinnedSession.sourcePlanId) : undefined)}><Play size={17} fill="currentColor" /> Retomar sessão</button><button className="btn btn-quiet" type="button" onClick={() => discardSession(pinnedSession.id)}><Trash2 size={16} /> Descartar</button></div>
           </div>
         )}
         {!state.todayPin && (
@@ -969,6 +983,30 @@ export default function Home() {
     );
   }
 
+  function renderPreviousSessionModal() {
+    if (!pendingSessionStart) return null;
+    const previous = state.sessions.find((session) => session.id === pendingSessionStart.previousSessionId);
+    if (!previous) return null;
+    return (
+      <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPendingSessionStart(null); }}>
+        <dialog open className="modal" aria-modal="true" aria-labelledby="previous-session-modal-title">
+          <div className="modal-head">
+            <div>
+              <h2 id="previous-session-modal-title">Treino anterior ainda aberto</h2>
+              <p>{previous.sourcePlanName ?? 'Sessão vazia'} começou {formatDateTime(previous.startedAt)}. Escolha antes de registrar séries hoje.</p>
+            </div>
+            <button className="btn btn-quiet btn-icon" type="button" onClick={() => setPendingSessionStart(null)} aria-label="Agora não"><X size={20} /></button>
+          </div>
+          <div className="button-stack">
+            <button className="btn btn-secondary btn-block" type="button" onClick={resumePreviousSession}><History size={17} /> Retomar ontem</button>
+            <button className="btn btn-primary btn-block" type="button" onClick={completePreviousAndStartToday}><Play size={17} fill="currentColor" /> Encerrar ontem e começar hoje</button>
+            <button className="btn btn-quiet btn-block" type="button" onClick={() => setPendingSessionStart(null)}>Agora não</button>
+          </div>
+        </dialog>
+      </div>
+    );
+  }
+
   function renderPlanModal() {
     if (modal !== 'plan' || !draft) return null;
     return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setModal(null); setDraft(null); } }}><dialog open className="modal" aria-modal="true" aria-labelledby="plan-modal-title"><div className="modal-head"><div><h2 id="plan-modal-title">{draft.id ? 'Editar ficha' : 'Nova ficha'}</h2><p>Defina o alvo. O que acontecer fica na sessão.</p></div><button className="btn btn-quiet btn-icon" type="button" onClick={() => { setModal(null); setDraft(null); }} aria-label="Fechar"><X size={20} /></button></div><div className="editor"><div className="form-field"><label htmlFor="plan-name">Nome da ficha</label><input id="plan-name" className="text-input" type="text" placeholder="Ex.: Pernas + core" value={draft.name} onChange={(event) => setDraft((current) => current ? { ...current, name: event.target.value } : current)} /></div><div className="section-heading" style={{ margin: '5px 0 0' }}><h2>Exercícios</h2><button className="btn btn-secondary btn-small" type="button" onClick={() => openPicker('plan')}><Plus size={15} /> Adicionar</button></div>{draft.exercises.length ? <div className="list">{draft.exercises.map((exercise, index) => <div className="editor-exercise" key={exercise.id}><span>{index + 1}</span><div className="editor-exercise-name"><strong>{exercise.exercise.name}</strong><span>{localizeMuscle(exercise.exercise.primaryMuscles[0])} · {localizeEquipment(exercise.exercise.equipment)}</span></div><input className="mini-input" type="number" min="1" max="30" value={exercise.targetSets} aria-label={`Séries de ${exercise.exercise.name}`} onChange={(event) => updateDraftExercise(exercise.id, 'targetSets', event.target.value)} /><input className="mini-input" type="number" min="1" max="999" value={exercise.targetReps} aria-label={`Reps de ${exercise.exercise.name}`} onChange={(event) => updateDraftExercise(exercise.id, 'targetReps', event.target.value)} /><input className="mini-input" type="text" inputMode="decimal" placeholder="kg" value={exercise.targetKg ?? ''} aria-label={`Peso de ${exercise.exercise.name}`} onChange={(event) => updateDraftExercise(exercise.id, 'targetKg', event.target.value)} /><div style={{ display: 'grid', gap: 3 }}><button className="icon-button" type="button" onClick={() => moveDraftExercise(index, -1)} aria-label="Mover para cima" disabled={index === 0}><ArrowUp size={14} /></button><button className="icon-button" type="button" onClick={() => moveDraftExercise(index, 1)} aria-label="Mover para baixo" disabled={index === draft.exercises.length - 1}><ArrowDown size={14} /></button></div><button className="icon-button" type="button" onClick={() => setDraft((current) => current ? { ...current, exercises: current.exercises.filter((item) => item.id !== exercise.id).map((item, order) => ({ ...item, order })) } : current)} aria-label={`Remover ${exercise.exercise.name}`}><Trash2 size={14} /></button></div>)}</div> : <div className="surface empty" style={{ padding: '20px 14px' }}><ListPlus size={22} color="var(--lime)" style={{ marginBottom: 8 }} /><p style={{ margin: 0 }}>Adicione exercícios do catálogo.</p></div>}<div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}><button className="btn btn-quiet" type="button" onClick={() => { setModal(null); setDraft(null); }}>Cancelar</button><button className="btn btn-primary" type="button" onClick={savePlan}><Save size={16} /> Salvar ficha</button></div></div></dialog></div>;
@@ -984,7 +1022,7 @@ export default function Home() {
     return <main className="app-main" style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center' }}><div className="surface empty" style={{ width: '100%' }}><div className="empty-icon"><Dumbbell size={24} /></div><h2>Preparando seu treino</h2><p>Carregando o catálogo e seus dados locais.</p></div></main>;
   }
 
-  if (sessionViewId) return <>{renderSession()}{renderPlanModal()}{renderPickerModal()}{toast && <output className="toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</>;
+  if (sessionViewId) return <>{renderSession()}{renderPlanModal()}{renderPickerModal()}{renderPreviousSessionModal()}{toast && <output className="toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</>;
 
-  return <div className="app-shell">{renderHeader()}{catalogLoading && <div className="app-main" style={{ paddingTop: 0 }}><p style={{ color: 'var(--muted)', fontSize: 11 }}>Sincronizando catálogo…</p></div>}{tab === 'today' && renderToday()}{tab === 'folder' && renderFolder()}{tab === 'week' && renderWeek()} {tab === 'data' && renderData()}<nav className="bottom-nav" aria-label="Navegação principal"><div className="bottom-nav-inner"><button className={`nav-item ${tab === 'today' ? 'active' : ''}`} type="button" onClick={() => setTab('today')}><Activity size={19} /><span>Hoje</span></button><button className={`nav-item ${tab === 'folder' ? 'active' : ''}`} type="button" onClick={() => setTab('folder')}><FolderOpen size={19} /><span>Pasta</span></button><button className={`nav-item ${tab === 'week' ? 'active' : ''}`} type="button" onClick={() => setTab('week')}><CalendarDays size={19} /><span>Semana</span></button><button className={`nav-item ${tab === 'data' ? 'active' : ''}`} type="button" onClick={() => setTab('data')}><Database size={19} /><span>Dados</span></button></div></nav>{renderPlanModal()}{renderPickerModal()}{toast && <output className="toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</div>;
+  return <div className="app-shell">{renderHeader()}{catalogLoading && <div className="app-main" style={{ paddingTop: 0 }}><p style={{ color: 'var(--muted)', fontSize: 11 }}>Sincronizando catálogo…</p></div>}{tab === 'today' && renderToday()}{tab === 'folder' && renderFolder()}{tab === 'week' && renderWeek()} {tab === 'data' && renderData()}<nav className="bottom-nav" aria-label="Navegação principal"><div className="bottom-nav-inner"><button className={`nav-item ${tab === 'today' ? 'active' : ''}`} type="button" onClick={() => setTab('today')}><Activity size={19} /><span>Hoje</span></button><button className={`nav-item ${tab === 'folder' ? 'active' : ''}`} type="button" onClick={() => setTab('folder')}><FolderOpen size={19} /><span>Pasta</span></button><button className={`nav-item ${tab === 'week' ? 'active' : ''}`} type="button" onClick={() => setTab('week')}><CalendarDays size={19} /><span>Semana</span></button><button className={`nav-item ${tab === 'data' ? 'active' : ''}`} type="button" onClick={() => setTab('data')}><Database size={19} /><span>Dados</span></button></div></nav>{renderPlanModal()}{renderPickerModal()}{renderPreviousSessionModal()}{toast && <output className="toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</div>;
 }
