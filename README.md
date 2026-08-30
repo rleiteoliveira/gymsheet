@@ -33,7 +33,7 @@ npm run build
 
 ## Fluxo de entrega
 
-Branches curtas (`feat/*`, `fix/*`) entram por PR em `main`. O CI executa lint, TypeScript e build; `main` é a produção. O teste principal depois do merge é no Android.
+Branches curtas (`feat/*`, `fix/*`) entram por PR em `main`. O CI executa lint, TypeScript e build; `main` é a produção. O dono não testa; o CI clica no caminho feliz.
 
 Agentes (Codex, Grok, Antigravity): leia [AGENTS.md](AGENTS.md). Planos de fatia ficam em [docs/slices/](docs/slices/README.md).
 

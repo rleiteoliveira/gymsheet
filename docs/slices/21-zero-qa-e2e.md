@@ -1,7 +1,7 @@
 # Slice 21 — zero QA do dono (e2e no CI)
 
 - Issue: #21
-- Status: ready
+- Status: doing
 - Cabe no próximo treino? não — destrava o dono de testar
 
 ## Faz
