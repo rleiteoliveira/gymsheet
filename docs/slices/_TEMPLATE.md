@@ -13,6 +13,7 @@
 
 - #
 - D1, auth, Workbox, `develop`, refatorar `components/ui`
+- pedir QA ao dono
 
 ## Arquivos
 
@@ -27,7 +28,7 @@
 ## Testes
 
 - vitest:
-- smoke Android:
+- e2e: estender `e2e/happy-path.spec.ts` se o caminho feliz mudar. Sem “smoke manual”.
 
 ## Débito
 

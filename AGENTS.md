@@ -12,11 +12,11 @@ Leia nesta ordem:
 
 ## Papéis
 
-- **Planejador:** só grava `docs/slices/NN-slug.md` em `draft`. Não escreve app.
-- **Dono:** muda o slice para `ready` (no máximo 5 itens no Faz).
-- **Executor:** um PR que segue um slice `ready`. Não reescreve o plano.
+- **Dono:** manda “quero X” quando der vontade. Merge se o CI estiver verde. **Não testa.**
+- **Planejador:** só grava `docs/slices/NN-slug.md` em `draft` (ou o dono/Grok grava `ready`).
+- **Executor:** um PR que segue um slice `ready`. Roda unit + e2e. Não pede QA humano.
 
-Prompts prontos: [docs/prompts/planejador.md](docs/prompts/planejador.md) e [docs/prompts/executor.md](docs/prompts/executor.md).
+Prompts: [docs/prompts/planejador.md](docs/prompts/planejador.md), [docs/prompts/executor.md](docs/prompts/executor.md).
 
 ## Invariantes
 
@@ -25,14 +25,15 @@ Prompts prontos: [docs/prompts/planejador.md](docs/prompts/planejador.md) e [doc
 - Fluxo de hoje não muta sessão de outro dia. Calendário é a porta de correção.
 - Dia = data civil **local**.
 - `components/ui/*` não se refatora por estética.
-- Produção: `https://gymsheet.rleiteoliveira.workers.dev` — repo público `rleiteoliveira/gymsheet`.
+- Produção: `https://gymsheet.rleiteoliveira.workers.dev`
+- Aceite de produto = CI verde. Não existe “smoke no Android do dono”.
 
 ## Ordem de produto viva
 
-1. Slice `ready` atual: [18-comecar-agora](docs/slices/18-comecar-agora.md) (#18)
-2. Dogfood no Worker / Android
-3. Atrito que doeu no treino
-4. Débito [13-debito-historico](docs/slices/13-debito-historico.md) só se o calendário doer
-5. #6 programas por último
+1. Slice `ready` atual: [21-zero-qa-e2e](docs/slices/21-zero-qa-e2e.md) (#21)
+2. Atrito que o dono mandar em uma frase
+3. Débito [13-debito-historico](docs/slices/13-debito-historico.md) só se ele pedir
+4. #6 por último
+5. #8 deploy auto não é QA
 
-Se não existe slice `ready`, não implemente feature. Capture issue de 4 linhas.
+Se não existe slice `ready`, não implemente feature.
