@@ -1,7 +1,7 @@
 # Slice 15 — diário de exemplo
 
 - Issue: #15
-- Status: ready
+- Status: doing
 - Cabe no próximo treino? sim — é o que destrava ver o app
 
 ## Faz

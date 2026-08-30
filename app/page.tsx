@@ -38,6 +38,7 @@ import { createBackup, loadAppState, parseBackup, restoreAppState, saveAppState 
 import { FALLBACK_EXERCISES, imageUrl, loadCatalog, toSnapshot } from '@/lib/catalog';
 import { filterCatalogExercises, muscleGroupsForCatalog } from '@/lib/catalog-filter';
 import { calendarGrid, localNoonIso, monthStart, monthTitle, parseLocalDateKey, sessionsForDate } from '@/lib/calendar';
+import { buildDemoState } from '@/lib/demo-state';
 import { normalizeEmojiInput } from '@/lib/emoji';
 import { computeFavoriteScores, rankCatalogExercises } from '@/lib/favorites';
 import {
@@ -364,6 +365,15 @@ export default function Home() {
   const reloadAfterServiceWorkerUpdateRef = useRef(false);
 
   const notify = useCallback((message: string) => setToast(message), []);
+
+  function applyLoadedState(next: AppState) {
+    setState(next);
+    setSessionViewId(null);
+    setActiveExerciseId(null);
+    setPendingSessionStart(null);
+    setModal(null);
+    setDraft(null);
+  }
 
   const mutate = useCallback((updater: (current: AppState) => AppState) => {
     setState((current) => {
@@ -874,11 +884,22 @@ export default function Home() {
       const sessionCount = backup.data.sessions.length;
       if (!window.confirm(`Restaurar ${planCount} ficha(s) e ${sessionCount} sessão(ões)? Os dados atuais serão substituídos.`)) return;
       await restoreAppState(backup);
-      setState(backup.data);
-      setSessionViewId(null);
+      applyLoadedState(backup.data);
       notify('Backup restaurado.');
     } catch {
       notify('Arquivo inválido. Nenhum dado foi alterado.');
+    }
+  }
+
+  async function handleLoadDemo() {
+    if (!window.confirm('Apaga fichas e sessões atuais deste aparelho e carrega o exemplo?')) return;
+    try {
+      const demoState = buildDemoState();
+      await saveAppState(demoState);
+      applyLoadedState(demoState);
+      notify('Diário de exemplo carregado.');
+    } catch {
+      notify('Não consegui carregar o diário de exemplo. Nenhum dado foi alterado.');
     }
   }
 
@@ -1074,6 +1095,7 @@ export default function Home() {
           <div className="data-row"><div><strong>CSV de séries</strong><p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 11 }}>Uma linha por série, com status</p></div><button className="btn btn-primary btn-small" type="button" onClick={() => { downloadFile(`gymsheet-${localDateKey(new Date())}.csv`, buildCsv(state.sessions), 'text/csv;charset=utf-8'); notify('CSV baixado.'); }}><FileDown size={15} /> Baixar CSV</button></div>
           <div className="data-row"><div><strong>Backup completo</strong><p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 11 }}>Fichas, sessões e pin atual</p></div><button className="btn btn-secondary btn-small" type="button" onClick={() => { downloadFile(`gymsheet-backup-${localDateKey(new Date())}.json`, JSON.stringify(createBackup(state), null, 2), 'application/json;charset=utf-8'); notify('Backup JSON baixado.'); }}><FileJson size={15} /> Baixar JSON</button></div>
           <div className="data-row"><div><strong>Restaurar backup</strong><p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 11 }}>Valida antes de substituir seus dados</p></div><label className="btn btn-secondary btn-small" htmlFor="restore-file"><Upload size={15} /> Escolher JSON</label><input id="restore-file" className="hidden-input" type="file" accept="application/json,.json" onChange={(event) => void handleRestore(event)} /></div>
+          <div className="data-row"><div><strong>Diário de exemplo</strong><p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 11 }}>Carrega fichas e sessões para explorar o app</p></div><button className="btn btn-secondary btn-small" type="button" onClick={() => void handleLoadDemo()}><Dumbbell size={15} /> Carregar diário de exemplo</button></div>
         </section>
         <div className="warning" style={{ marginTop: 17 }}><Info size={16} /><div><strong>Importante:</strong> publicar o app não publica seus treinos. Para levar seus dados a outro aparelho, restaure este JSON.</div></div>
       </main>
