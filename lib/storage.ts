@@ -90,7 +90,7 @@ const setSchema = z.object({
   id: z.string(),
   index: z.number().int().min(1),
   kg: z.number().nonnegative().nullable(),
-  reps: z.number().int().min(1).max(999),
+  reps: z.number().int().min(0).max(999),
   savedAt: z.string(),
 });
 
