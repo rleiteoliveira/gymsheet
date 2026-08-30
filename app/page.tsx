@@ -86,6 +86,8 @@ interface CatalogState {
 interface PendingSessionStart {
   previousSessionId: string;
   planId: string | null;
+  quickStartName?: string;
+  quickStartMuscleGroups?: string[];
 }
 
 const EMPTY_STATE: AppState = { plans: [], sessions: [], todayPin: null };
@@ -132,6 +134,10 @@ function formatDate(input: string | Date, options: Intl.DateTimeFormatOptions = 
   }).format(typeof input === 'string' ? new Date(input) : input);
 }
 
+function capitalizeFirst(value: string) {
+  return value ? `${value.charAt(0).toLocaleUpperCase('pt-BR')}${value.slice(1)}` : value;
+}
+
 function formatDateTime(input: string) {
   return new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit',
@@ -148,6 +154,12 @@ function formatSessionDuration(startedAt: string, now: Date) {
   const seconds = elapsedSeconds % 60;
   if (hours > 0) return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function formatDurationLabel(startedAt: string, completedAt: string | null) {
+  if (!completedAt) return '';
+  const minutes = Math.max(1, Math.round((new Date(completedAt).getTime() - new Date(startedAt).getTime()) / 60000));
+  return `${minutes} min`;
 }
 
 function formatDateKeyLabel(dateKey: string, options: Intl.DateTimeFormatOptions = {}) {
@@ -506,7 +518,6 @@ export default function Home() {
   }, [toast]);
 
   const pinnedPlan = state.todayPin?.kind === 'plan' ? state.plans.find((plan) => plan.id === state.todayPin?.id) : undefined;
-  const pinnedSession = state.todayPin?.kind === 'session' ? state.sessions.find((session) => session.id === state.todayPin?.id) : undefined;
   const activeSession = sessionViewId ? state.sessions.find((session) => session.id === sessionViewId) : undefined;
 
   useEffect(() => {
@@ -519,8 +530,17 @@ export default function Home() {
 
   const todayKey = localDateKey(new Date());
   const today = useMemo(() => parseLocalDateKey(todayKey), [todayKey]);
+  const todayInProgressSession = useMemo(
+    () => state.sessions.find((session) => session.state === 'in_progress' && localDateKey(session.startedAt) === todayKey),
+    [state.sessions, todayKey],
+  );
   const weekStats = useMemo(() => getWeekStats(state.sessions), [state.sessions]);
-  const recentSessions = useMemo(() => [...state.sessions].sort((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, 5), [state.sessions]);
+  const lastCompletedSession = useMemo(
+    () => [...state.sessions]
+      .filter((session) => session.state === 'completed')
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0],
+    [state.sessions],
+  );
   const calendarDays = useMemo(() => calendarGrid(calendarCursor, state.sessions, today), [calendarCursor, state.sessions, today]);
   const selectedCalendarSessions = useMemo(() => sessionsForDate(state.sessions, calendarSelectedDateKey), [state.sessions, calendarSelectedDateKey]);
   const favoriteScores = useMemo(() => computeFavoriteScores(state.sessions, today), [state.sessions, today]);
@@ -553,13 +573,28 @@ export default function Home() {
     setModal('quick-start');
   }
 
-  function confirmQuickStart() {
-    const name = quickStartName.trim();
-    if (!name) {
-      notify('Dê um nome para o treino.');
+  function startQuickSession(name: string) {
+    const now = new Date();
+    const decision = decideSessionStart(state.sessions, now);
+    if (decision.kind === 'resume-today') {
+      setModal(null);
+      setQuickStartName('');
+      openSession(decision.session.id);
       return;
     }
-    const session = createQuickSession(name, new Date(), makeId);
+    if (decision.kind === 'choose-previous') {
+      setPendingSessionStart({
+        previousSessionId: decision.session.id,
+        planId: null,
+        quickStartName: name,
+        quickStartMuscleGroups: [...pickerMuscleGroups],
+      });
+      setModal(null);
+      setQuickStartName('');
+      return;
+    }
+
+    const session = createQuickSession(name, now, makeId);
     mutate((current) => ({
       ...current,
       sessions: [...current.sessions, session],
@@ -572,6 +607,15 @@ export default function Home() {
     setComposerReps('');
     setModal('picker');
     notify('Treino começou. Escolha um exercício.');
+  }
+
+  function confirmQuickStart() {
+    const name = quickStartName.trim();
+    if (!name) {
+      notify('Dê um nome para o treino.');
+      return;
+    }
+    startQuickSession(name);
   }
 
   function openQuickExercisePicker() {
@@ -690,7 +734,10 @@ export default function Home() {
     const selectedPlan = pendingSessionStart.planId
       ? state.plans.find((plan) => plan.id === pendingSessionStart.planId)
       : undefined;
-    const nextSession = createSessionFromPlan(selectedPlan, now, makeId);
+    const quickStartName = pendingSessionStart.quickStartName;
+    const nextSession = quickStartName
+      ? createQuickSession(quickStartName, now, makeId)
+      : createSessionFromPlan(selectedPlan, now, makeId);
     const previousSessionId = pendingSessionStart.previousSessionId;
     mutate((current) => ({
       ...current,
@@ -705,7 +752,14 @@ export default function Home() {
     setPendingSessionStart(null);
     setSessionViewId(nextSession.id);
     setActiveExerciseId(null);
-    notify(selectedPlan ? `Sessão ${selectedPlan.name} começou hoje.` : 'Sessão vazia começou hoje.');
+    if (quickStartName) {
+      setPickerMode('add');
+      setPickerSessionExerciseId(null);
+      setPickerSearch('');
+      setPickerMuscleGroups(pendingSessionStart.quickStartMuscleGroups ?? []);
+      setModal('picker');
+    }
+    notify(quickStartName ? `Sessão ${quickStartName} começou hoje.` : selectedPlan ? `Sessão ${selectedPlan.name} começou hoje.` : 'Sessão vazia começou hoje.');
   }
 
   function selectExerciseForRegister(exercise: SessionExercise) {
@@ -1013,70 +1067,78 @@ export default function Home() {
     );
   }
 
-  function renderToday() {
-    const pinnedProgress = pinnedSession ? `${pinnedSession.exercises.filter((exercise) => exercise.status !== null).length}/${pinnedSession.exercises.length || 0} resolvidos` : '';
+  function renderWorkoutDock() {
+    const hasTodaySession = Boolean(todayInProgressSession);
     return (
-      <main className="app-main">
-        <section>
-          <p className="eyebrow">Hoje · {formatDate(today, { weekday: 'long' })}</p>
-          <h1 className="page-title">GymSheet</h1>
-          <p className="page-lede">Uma mão, uma série por vez. O que você fizer fica salvo só neste aparelho.</p>
+      <div className="workout-dock">
+        <div className="workout-dock-inner">
+          <button
+            className="btn btn-primary"
+            type="button"
+            data-testid="start-workout"
+            onClick={() => {
+              if (hasTodaySession) {
+                startSession();
+                return;
+              }
+              if (pinnedPlan) {
+                startSession(pinnedPlan);
+                return;
+              }
+              openQuickStart();
+            }}
+          >
+            {hasTodaySession ? <RotateCcw size={18} /> : <Play size={18} fill="currentColor" />} {hasTodaySession ? 'Retomar treino' : 'Começar treino'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderToday() {
+    const resolved = todayInProgressSession?.exercises.filter((exercise) => exercise.status !== null).length ?? 0;
+    const total = todayInProgressSession?.exercises.length ?? 0;
+    const progress = total ? Math.round((resolved / total) * 100) : 0;
+    const lastSessionDuration = lastCompletedSession ? formatDurationLabel(lastCompletedSession.startedAt, lastCompletedSession.completedAt) : '';
+    return (
+      <main className="app-main today-main">
+        <section className="today-heading" aria-labelledby="today-title">
+          <p className="eyebrow">Hoje</p>
+          <h1 id="today-title" className="page-title">Hoje</h1>
+          <p className="today-date">{capitalizeFirst(formatDate(today, { weekday: 'long', day: 'numeric', month: 'long' }))}</p>
         </section>
-        {catalogMeta.error && <div style={{ marginTop: 18 }}>{renderWarning()}</div>}
+        {catalogMeta.error && <div className="today-warning">{renderWarning()}</div>}
 
-        <section className="start-now-card">
-          <div><p className="eyebrow">Treino de hoje</p><h2>Comece sem procurar uma ficha</h2><p>Escolha os grupamentos e registre o que acontecer.</p></div>
-          <button className="btn btn-primary btn-large" type="button" data-testid="start-workout" onClick={openQuickStart}><Play size={18} fill="currentColor" /> Começar treino</button>
-        </section>
-
-        <section className="section-heading"><h2>Seu item pinado</h2><p>{state.todayPin ? 'fica aqui até você resolver' : 'nada fixado ainda'}</p></section>
-        {pinnedPlan && (
-          <div className="surface pin-card">
-            <div className="pin-top"><span className="pin-label"><Pin size={14} /> Ficha planejada</span><span className="pin-meta">{pinnedPlan.exercises.length} exercícios</span></div>
-            <h2 className="pin-name">{pinnedPlan.emoji ? `${pinnedPlan.emoji} ` : ''}{pinnedPlan.name}</h2>
-            <p className="pin-detail">Pronta para registrar sem procurar de novo.</p>
-            <div className="pin-actions"><button className="btn btn-primary" type="button" onClick={() => startSession(pinnedPlan)}><Play size={17} fill="currentColor" /> Começar sessão</button><button className="btn btn-quiet" type="button" onClick={clearPin}><PinOff size={16} /> Desafixar</button></div>
-          </div>
-        )}
-        {pinnedSession && (
-          <div className="surface pin-card">
-            <div className="pin-top"><span className="pin-label"><Activity size={14} /> Sessão em andamento</span><span className="pin-meta">{pinnedProgress}</span></div>
-            <h2 className="pin-name">{pinnedSession.sourcePlanName ?? 'Sessão vazia'}</h2>
-            <p className="pin-detail">Começou {formatDateTime(pinnedSession.startedAt)}. Retome de onde parou.</p>
-            <div className="pin-actions"><button className="btn btn-primary" type="button" onClick={() => startSession(pinnedSession.sourcePlanId ? state.plans.find((plan) => plan.id === pinnedSession.sourcePlanId) : undefined)}><Play size={17} fill="currentColor" /> Retomar sessão</button><button className="btn btn-quiet" type="button" onClick={() => discardSession(pinnedSession.id)}><Trash2 size={16} /> Descartar</button></div>
-          </div>
-        )}
-        {!state.todayPin && (
-          <div className="surface empty">
-            <div className="empty-icon"><Pin size={24} /></div>
-            <h2>O topo está livre</h2>
-            <p>Fixe uma ficha para começar com intenção ou abra uma sessão vazia quando quiser improvisar.</p>
-            <div className="button-stack"><button className="btn btn-primary" type="button" onClick={() => openPlanEditor()}><Plus size={18} /> Criar ficha</button><button className="btn btn-secondary" type="button" onClick={() => startSession()}><CirclePlus size={18} /> Sessão vazia</button></div>
-          </div>
-        )}
-
-        {!state.todayPin && state.plans.length > 0 && (
-          <section>
-            <div className="section-heading"><h2>Fixar uma ficha</h2><button className="btn btn-quiet btn-small" type="button" onClick={() => { setTab('folder'); setFolderTab('plans'); }}>Ver todas <ChevronRight size={15} /></button></div>
-            <div className="list">{state.plans.slice(0, 3).map((plan) => <div className="list-card" key={plan.id}><div className="list-card-main"><h3>{plan.emoji ? `${plan.emoji} ` : ''}{plan.name}</h3><p>{plan.exercises.length} exercícios · atualizado {formatDate(plan.updatedAt)}</p></div><button className="btn btn-secondary btn-small" type="button" onClick={() => pinPlan(plan.id)}><Pin size={14} /> Fixar</button></div>)}</div>
+        {todayInProgressSession ? (
+          <section className="today-context" aria-labelledby="today-context-title">
+            <div className="today-context-label"><Activity size={16} /> Treino em andamento</div>
+            <h2 id="today-context-title" className="today-context-title">{todayInProgressSession.sourcePlanName ?? 'Sessão vazia'}</h2>
+            <div className="today-progress">
+              <div className="progress-track" aria-label={`${resolved} de ${total || 0} exercícios resolvidos`}><span style={{ width: `${progress}%` }} /></div>
+              <p className="today-context-detail">{resolved} de {total || 0} exercícios resolvidos</p>
+            </div>
+          </section>
+        ) : pinnedPlan ? (
+          <section className="today-context" aria-labelledby="today-context-title">
+            <div className="today-context-label"><Pin size={16} /> Ficha fixada</div>
+            <h2 id="today-context-title" className="today-context-title">{pinnedPlan.emoji ? `${pinnedPlan.emoji} ` : ''}{pinnedPlan.name}</h2>
+            <p className="today-context-detail">{pinnedPlan.exercises.length} exercícios</p>
+            <div className="today-context-actions"><button className="btn btn-quiet" type="button" onClick={() => { setTab('folder'); setFolderTab('plans'); }}><RotateCcw size={17} /> Trocar</button></div>
+          </section>
+        ) : (
+          <section className="today-context" aria-labelledby="today-context-title">
+            <div className="today-context-label"><Activity size={16} /> Treino livre</div>
+            <h2 id="today-context-title" className="today-context-title">Sem ficha fixada</h2>
+            <div className="today-context-actions"><button className="btn btn-quiet" type="button" onClick={() => { setTab('folder'); setFolderTab('plans'); }}><FolderOpen size={17} /> Escolher ficha</button></div>
           </section>
         )}
 
-        <section>
-          <div className="section-heading"><h2>Atalhos</h2><p>sem menu escondido</p></div>
-          <div className="quick-grid">
-            <button className="quick-card" type="button" onClick={() => openPlanEditor()}><Plus size={20} /><div><strong>Nova ficha</strong><span>Monte seu próximo treino</span></div></button>
-            <button className="quick-card" type="button" onClick={openQuickStart}><Activity size={20} /><div><strong>Treino livre</strong><span>Comece sem planejamento</span></div></button>
-            <button className="quick-card" type="button" onClick={() => setTab('week')}><CalendarDays size={20} /><div><strong>Ver semana</strong><span>O que já aconteceu</span></div></button>
-            <button className="quick-card" type="button" onClick={() => setTab('data')}><Database size={20} /><div><strong>Dados</strong><span>Exportar ou restaurar</span></div></button>
-          </div>
-        </section>
-
-        {recentSessions.length > 0 && (
-          <section>
-            <div className="section-heading"><h2>Mais recente</h2><p>{recentSessions.length} registro(s)</p></div>
-            <div className="list">{recentSessions.slice(0, 2).map((session) => <button className="list-card" key={session.id} type="button" onClick={() => { setTab('folder'); setFolderTab('sessions'); }}><div className="list-card-main"><h3>{session.sourcePlanName ?? 'Sessão vazia'}</h3><p>{formatDateTime(session.startedAt)} · {session.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0)} séries</p></div><History size={17} color="var(--muted)" /></button>)}</div>
-          </section>
+        {lastCompletedSession && (
+          <button className="last-session-row" type="button" onClick={() => { setTab('folder'); setFolderTab('sessions'); }} aria-label={`Abrir último treino ${lastCompletedSession.sourcePlanName ?? 'Sessão vazia'}`}>
+            <History size={20} />
+            <span className="last-session-copy"><span>Último treino</span><strong>{formatDate(lastCompletedSession.startedAt, { weekday: 'long' })}{lastSessionDuration ? ` · ${lastSessionDuration}` : ''}</strong></span>
+            <ChevronRight size={18} />
+          </button>
         )}
       </main>
     );
@@ -1085,7 +1147,7 @@ export default function Home() {
   function renderFolder() {
     return (
       <main className="app-main">
-        <section><p className="eyebrow">Pasta</p><h1 className="page-title">Fichas e sessões</h1><p className="page-lede">Planeje antes. Guarde o que realmente aconteceu.</p></section>
+        <section><p className="eyebrow">Fichas</p><h1 className="page-title">Fichas e sessões</h1><p className="page-lede">Planeje antes. Guarde o que realmente aconteceu.</p></section>
         <div className="tabs"><button className={`tab ${folderTab === 'plans' ? 'active' : ''}`} type="button" onClick={() => setFolderTab('plans')}>Fichas ({state.plans.length})</button><button className={`tab ${folderTab === 'sessions' ? 'active' : ''}`} type="button" onClick={() => setFolderTab('sessions')}>Sessões ({state.sessions.length})</button></div>
         {folderTab === 'plans' ? (
           state.plans.length ? <div className="list">{state.plans.map((plan) => <div className="list-card" key={plan.id}><div className="list-card-main"><h3>{plan.emoji ? `${plan.emoji} ` : ''}{plan.name}</h3><p>{plan.exercises.length} exercícios · {state.todayPin?.kind === 'plan' && state.todayPin.id === plan.id ? 'pinada hoje' : `atualizada ${formatDate(plan.updatedAt)}`}</p></div><div className="list-card-actions"><button className="btn btn-secondary btn-small" type="button" onClick={() => openPlanEditor(plan)} aria-label={`Editar ${plan.name}`}>Editar</button>{state.todayPin?.kind === 'plan' && state.todayPin.id === plan.id ? <button className="btn btn-quiet btn-small" type="button" onClick={clearPin}><PinOff size={14} /></button> : <button className="btn btn-secondary btn-small" type="button" onClick={() => pinPlan(plan.id)} aria-label={`Fixar ${plan.name}`}><Pin size={14} /></button>}<button className="btn btn-danger btn-small" type="button" onClick={() => deletePlan(plan.id)} aria-label={`Excluir ${plan.name}`}><Trash2 size={14} /></button></div></div>)}</div> : <div className="surface empty"><div className="empty-icon"><FolderOpen size={24} /></div><h2>A pasta está vazia</h2><p>Crie uma ficha com seus exercícios e alvos de séries.</p><button className="btn btn-primary" type="button" onClick={() => openPlanEditor()}><Plus size={18} /> Criar primeira ficha</button></div>
@@ -1316,5 +1378,5 @@ export default function Home() {
 
   if (sessionViewId) return <>{renderSession()}{renderPlanModal()}{renderPickerModal()}{renderQuickStartModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{toast && <output className="toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</>;
 
-  return <div className="app-shell">{renderHeader()}{catalogLoading && <div className="app-main" style={{ paddingTop: 0 }}><p style={{ color: 'var(--muted)', fontSize: 11 }}>Sincronizando catálogo…</p></div>}{tab === 'today' && renderToday()}{tab === 'folder' && renderFolder()}{tab === 'week' && renderWeek()} {tab === 'data' && renderData()}<nav className="bottom-nav" aria-label="Navegação principal"><div className="bottom-nav-inner"><button className={`nav-item ${tab === 'today' ? 'active' : ''}`} type="button" onClick={() => setTab('today')}><Activity size={19} /><span>Hoje</span></button><button className={`nav-item ${tab === 'folder' ? 'active' : ''}`} type="button" onClick={() => setTab('folder')}><FolderOpen size={19} /><span>Pasta</span></button><button className={`nav-item ${tab === 'week' ? 'active' : ''}`} type="button" data-testid="week-tab" onClick={() => setTab('week')}><CalendarDays size={19} /><span>Semana</span></button><button className={`nav-item ${tab === 'data' ? 'active' : ''}`} type="button" onClick={() => setTab('data')}><Database size={19} /><span>Dados</span></button></div></nav>{renderPlanModal()}{renderPickerModal()}{renderQuickStartModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{toast && <output className="toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</div>;
+  return <div className="app-shell">{renderHeader()}{catalogLoading && <div className="app-main" style={{ paddingTop: 0 }}><p style={{ color: 'var(--muted)', fontSize: 11 }}>Sincronizando catálogo…</p></div>}{tab === 'today' && renderToday()}{tab === 'folder' && renderFolder()}{tab === 'week' && renderWeek()}{tab === 'data' && renderData()}{renderWorkoutDock()}<nav className="bottom-nav" aria-label="Navegação principal"><div className="bottom-nav-inner"><button className={`nav-item ${tab === 'today' ? 'active' : ''}`} type="button" onClick={() => setTab('today')}><Activity size={19} /><span>Hoje</span></button><button className={`nav-item ${tab === 'folder' ? 'active' : ''}`} type="button" onClick={() => setTab('folder')}><FolderOpen size={19} /><span>Fichas</span></button><button className={`nav-item ${tab === 'week' ? 'active' : ''}`} type="button" data-testid="week-tab" onClick={() => setTab('week')}><CalendarDays size={19} /><span>Semana</span></button><button className={`nav-item ${tab === 'data' ? 'active' : ''}`} type="button" onClick={() => setTab('data')}><Database size={19} /><span>Dados</span></button></div></nav>{renderPlanModal()}{renderPickerModal()}{renderQuickStartModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{toast && <output className="toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</div>;
 }

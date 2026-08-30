@@ -4,8 +4,10 @@ test('começa um treino, registra uma série, finaliza e abre a Semana', async (
   await page.route('**/free-exercise-db/main/dist/exercises.json', (route) => route.abort());
   await page.goto('/');
 
-  await expect(page.getByTestId('start-workout')).toBeVisible();
-  await page.getByTestId('start-workout').click();
+  const launcher = page.getByTestId('start-workout');
+  await expect(launcher).toBeVisible();
+  await expect(launcher).toHaveText('Começar treino');
+  await launcher.click();
 
   const quickStartDialog = page.getByRole('dialog', { name: 'Começar treino' });
   await expect(quickStartDialog).toBeVisible();
@@ -20,11 +22,30 @@ test('começa um treino, registra uma série, finaliza e abre a Semana', async (
 
   await expect(page.getByTestId('quick-set-done')).toBeVisible();
   await page.getByTestId('quick-set-done').click();
+  await expect(page.getByTestId('start-workout')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Voltar', exact: true }).click();
+  await expect(launcher).toBeVisible();
+  await expect(launcher).toHaveText('Retomar treino');
+  await launcher.click();
+  await expect(page.getByRole('heading', { name: 'Treino E2E', exact: true })).toBeVisible();
+  await expect(page.getByText('Série 1', { exact: true })).toBeVisible();
+
   await expect(page.getByTestId('finish-workout')).toBeVisible();
   await page.getByTestId('finish-workout').click();
+  await expect(launcher).toBeVisible();
+  await expect(launcher).toHaveText('Começar treino');
 
   await page.getByTestId('week-tab').click();
   await expect(page.getByRole('heading', { name: 'Calendário', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: /Treino E2E/ })).toBeVisible();
   await expect(page.getByText('Concluída', { exact: true })).toBeVisible();
+  await expect(launcher).toBeVisible();
+
+  await page.getByRole('button', { name: 'Fichas', exact: true }).click();
+  await expect(launcher).toBeVisible();
+  await page.getByTestId('week-tab').click();
+  await expect(launcher).toBeVisible();
+  await page.getByRole('button', { name: 'Dados', exact: true }).click();
+  await expect(launcher).toBeVisible();
 });
