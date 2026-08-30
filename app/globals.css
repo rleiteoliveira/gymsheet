@@ -195,6 +195,15 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .modal-head p { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.35; }
 .search-row { display: flex; gap: 8px; margin-bottom: 11px; }
 .search-row .text-input { flex: 1; }
+.picker-filter { display: grid; gap: 7px; margin-bottom: 7px; }
+.picker-filter-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 11px; font-weight: 750; }
+.picker-filter-head .btn { min-height: 30px; padding-inline: 7px; font-size: 11px; }
+.muscle-chips { display: flex; gap: 7px; min-width: 0; overflow-x: auto; border: 0; margin-inline: -2px; padding: 2px 2px 5px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.muscle-chips::-webkit-scrollbar { display: none; }
+.muscle-chip { min-height: 38px; flex: 0 0 auto; border: 1px solid var(--line); border-radius: 999px; padding: 0 13px; color: var(--muted); background: var(--surface); cursor: pointer; font-size: 12px; font-weight: 750; white-space: nowrap; }
+.muscle-chip:hover { border-color: #50605b; color: var(--text); }
+.muscle-chip.active { border-color: var(--lime); color: var(--bg); background: var(--lime); box-shadow: 0 7px 16px rgb(184 243 74 / 14%); }
+.picker-count { margin: 0 0 10px; color: var(--muted); font-size: 11px; }
 .picker-list { display: grid; gap: 7px; }
 .picker-item { display: flex; align-items: center; gap: 10px; width: 100%; border: 1px solid var(--line); border-radius: 13px; padding: 10px; color: var(--text); background: var(--surface); text-align: left; cursor: pointer; }
 .picker-item:hover { border-color: var(--lime); }
