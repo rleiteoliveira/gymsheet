@@ -25,7 +25,7 @@ Contrato de execução. A issue é a intenção; o slice é o que o executor pod
 
 | Slice | Status | Issue |
 |---|---|---|
-| [18-comecar-agora](./18-comecar-agora.md) | ready | #18 |
+| [18-comecar-agora](./18-comecar-agora.md) | doing | #18 |
 | [15-diario-exemplo](./15-diario-exemplo.md) | done | #15 |
 | [13-debito-historico](./13-debito-historico.md) | adiado | #7 |
 

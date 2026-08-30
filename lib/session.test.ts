@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   applySessionEdit,
   completeSession,
+  createQuickSession,
   createSessionFromPlan,
   decideSessionStart,
   localCivilDateKey,
   localCivilDateTime,
+  suggestedSessionName,
 } from './session';
 import type { ExerciseSnapshot, Plan, SessionExercise } from './types';
 
@@ -66,6 +68,10 @@ function sequentialIds(prefix = 'id') {
 }
 
 describe('dia civil local', () => {
+  it('sugere o nome usando o dia civil local', () => {
+    expect(suggestedSessionName(new Date('2026-08-30T09:00:00-03:00'))).toBe('Treino · domingo 30/08');
+  });
+
   it('não usa a data UTC para separar sessões à noite', () => {
     expect(localCivilDateKey('2026-08-29T01:30:00.000Z')).toBe('2026-08-28');
     expect(localCivilDateKey('2026-08-29T02:59:59.000Z')).toBe('2026-08-28');
@@ -97,6 +103,32 @@ describe('dia civil local', () => {
 });
 
 describe('snapshot e edição da sessão', () => {
+  it('salva série opcional na sessão rápida sem alterar uma ficha', () => {
+    const plan = makePlan();
+    const originalPlan = structuredClone(plan);
+    let session = createQuickSession('Treino · domingo 30/08', new Date('2026-08-30T09:00:00-03:00'), sequentialIds('quick'));
+    const added: SessionExercise = {
+      id: 'added-fly',
+      order: 0,
+      planned: null,
+      performed: snapshot('fly', 'Crucifixo'),
+      status: 'added',
+      sets: [],
+    };
+
+    session = applySessionEdit(session, { type: 'add', exercise: added });
+    session = applySessionEdit(session, {
+      type: 'save-set',
+      exerciseId: added.id,
+      set: { id: 'set-optional', index: 1, kg: null, reps: 0, savedAt: '2026-08-30T12:00:00.000Z' },
+    });
+
+    expect(session.sourcePlanId).toBeNull();
+    expect(session.sourcePlanName).toBe('Treino · domingo 30/08');
+    expect(session.exercises[0].sets[0]).toMatchObject({ kg: null, reps: 0 });
+    expect(plan).toEqual(originalPlan);
+  });
+
   it('mantém done, skipped, swapped e added isolados da ficha original', () => {
     const plan = makePlan();
     const originalPlan = structuredClone(plan);

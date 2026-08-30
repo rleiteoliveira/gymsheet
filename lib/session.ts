@@ -66,6 +66,12 @@ export function localCivilDateTime(input: string | Date): string {
   return `${localCivilDateKey(date)}T${hours}:${minutes}:${seconds}${offsetSign}${offsetHours}:${offsetRemainder}`;
 }
 
+export function suggestedSessionName(now = new Date()): string {
+  const weekday = new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(now).toLocaleLowerCase('pt-BR');
+  const date = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(now);
+  return `Treino · ${weekday} ${date}`;
+}
+
 export function decideSessionStart(sessions: Session[], now: Date): SessionStartDecision {
   const inProgress = sessions.filter((session) => session.state === 'in_progress');
   const today = inProgress.find((session) => localCivilDateKey(session.startedAt) === localCivilDateKey(now));
@@ -93,6 +99,18 @@ export function createSessionFromPlan(plan: Plan | undefined, startedAt: Date, m
           sets: [],
         }))
       : [],
+  };
+}
+
+export function createQuickSession(name: string, startedAt: Date, makeId: IdFactory): Session {
+  return {
+    id: makeId(),
+    sourcePlanId: null,
+    sourcePlanName: name,
+    state: 'in_progress',
+    startedAt: startedAt.toISOString(),
+    completedAt: null,
+    exercises: [],
   };
 }
 
