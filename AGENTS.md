@@ -29,9 +29,10 @@ Prompts prontos: [docs/prompts/planejador.md](docs/prompts/planejador.md) e [doc
 
 ## Ordem de produto viva
 
-1. Dogfood no Worker / Android
-2. Atrito que doeu no treino
-3. Débito consciente em [docs/slices/13-debito-historico.md](docs/slices/13-debito-historico.md) **só se o dogfood pedir**
-4. #6 programas por último
+1. Slice `ready` atual: [18-comecar-agora](docs/slices/18-comecar-agora.md) (#18)
+2. Dogfood no Worker / Android
+3. Atrito que doeu no treino
+4. Débito [13-debito-historico](docs/slices/13-debito-historico.md) só se o calendário doer
+5. #6 programas por último
 
 Se não existe slice `ready`, não implemente feature. Capture issue de 4 linhas.
