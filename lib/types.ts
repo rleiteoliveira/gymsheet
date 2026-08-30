@@ -39,6 +39,7 @@ export interface PlanExercise {
 export interface Plan {
   id: string;
   name: string;
+  emoji: string | null;
   exercises: PlanExercise[];
   createdAt: string;
   updatedAt: string;
@@ -95,6 +96,13 @@ export interface BackupV1 {
   data: AppState;
 }
 
+export interface BackupV2 {
+  schemaVersion: 2;
+  app: 'treino-de-hoje';
+  exportedAt: string;
+  data: AppState;
+}
+
 export const STATUS_LABELS: Record<ExerciseStatus, string> = {
   done: 'Feito',
   skipped: 'Pulado',
@@ -108,4 +116,3 @@ export const STATUS_HINTS: Record<ExerciseStatus, string> = {
   swapped: 'planejado e feito diferentes',
   added: 'entrou durante a sessão',
 };
-
