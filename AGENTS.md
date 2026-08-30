@@ -30,10 +30,10 @@ Prompts: [docs/prompts/planejador.md](docs/prompts/planejador.md), [docs/prompts
 
 ## Ordem de produto viva
 
-1. Slice `ready` atual: [21-zero-qa-e2e](docs/slices/21-zero-qa-e2e.md) (#21)
+1. Slice em execução: [24-deploy-continuo](docs/slices/24-deploy-continuo.md) (#8)
 2. Atrito que o dono mandar em uma frase
 3. Débito [13-debito-historico](docs/slices/13-debito-historico.md) só se ele pedir
 4. #6 por último
-5. #8 deploy auto não é QA
+5. #1 só como mapa; deploy automático não é QA
 
 Se não existe slice `ready`, não implemente feature.
