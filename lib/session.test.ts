@@ -28,6 +28,7 @@ function makePlan(): Plan {
   return {
     id: 'plan-push',
     name: 'Push completo',
+    emoji: null,
     createdAt: '2026-08-01T12:00:00.000Z',
     updatedAt: '2026-08-20T12:00:00.000Z',
     exercises: [

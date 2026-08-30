@@ -1,6 +1,6 @@
 import type { DBSchema, IDBPDatabase } from 'idb';
 import { z } from 'zod';
-import type { AppState, BackupV1, CatalogCache } from './types';
+import type { AppState, BackupV2, CatalogCache, Plan } from './types';
 
 interface TreinoDb extends DBSchema {
   app: {
@@ -34,9 +34,21 @@ async function getDb() {
   return dbPromise;
 }
 
+function normalizePlan(plan: Omit<Plan, 'emoji'> & { emoji?: string | null }): Plan {
+  return { ...plan, emoji: plan.emoji ?? null };
+}
+
+function normalizeAppState(state: AppState): AppState {
+  return {
+    ...state,
+    plans: state.plans.map((plan) => normalizePlan(plan)),
+  };
+}
+
 export async function loadAppState(): Promise<AppState> {
   const db = await getDb();
-  return (await db?.get('app', 'state')) ?? structuredClone(DEFAULT_STATE);
+  const stored = await db?.get('app', 'state');
+  return stored ? normalizeAppState(stored) : structuredClone(DEFAULT_STATE);
 }
 
 export async function saveAppState(state: AppState): Promise<void> {
@@ -91,16 +103,17 @@ const sessionExerciseSchema = z.object({
   sets: z.array(setSchema),
 });
 
+const planSchema = z.object({
+  id: z.string(),
+  name: z.string().min(1),
+  emoji: z.string().nullable().optional(),
+  exercises: z.array(planExerciseSchema),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+}).transform((plan) => ({ ...plan, emoji: plan.emoji ?? null }));
+
 const appStateSchema = z.object({
-  plans: z.array(
-    z.object({
-      id: z.string(),
-      name: z.string().min(1),
-      exercises: z.array(planExerciseSchema),
-      createdAt: z.string(),
-      updatedAt: z.string(),
-    }),
-  ),
+  plans: z.array(planSchema),
   sessions: z.array(
     z.object({
       id: z.string(),
@@ -117,18 +130,27 @@ const appStateSchema = z.object({
     .nullable(),
 });
 
-export const backupSchema = z.object({
-  schemaVersion: z.literal(1),
+const backupDataSchema = z.object({
   app: z.literal('treino-de-hoje'),
   exportedAt: z.string(),
   data: appStateSchema,
 });
 
-export function parseBackup(raw: unknown): BackupV1 {
-  return backupSchema.parse(raw) as BackupV1;
+const backupV1Schema = backupDataSchema.extend({ schemaVersion: z.literal(1) });
+const backupV2Schema = backupDataSchema.extend({ schemaVersion: z.literal(2) });
+
+export const backupSchema = z.union([backupV1Schema, backupV2Schema]);
+
+export function parseBackup(raw: unknown): BackupV2 {
+  const parsed = backupSchema.parse(raw);
+  return {
+    ...parsed,
+    schemaVersion: 2,
+    data: normalizeAppState(parsed.data),
+  };
 }
 
-export async function restoreAppState(backup: BackupV1): Promise<void> {
+export async function restoreAppState(backup: BackupV2): Promise<void> {
   const db = await getDb();
   if (!db) return;
   const tx = db.transaction('app', 'readwrite');
@@ -136,11 +158,11 @@ export async function restoreAppState(backup: BackupV1): Promise<void> {
   await tx.done;
 }
 
-export function createBackup(data: AppState): BackupV1 {
+export function createBackup(data: AppState): BackupV2 {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     app: 'treino-de-hoje',
     exportedAt: new Date().toISOString(),
-    data,
+    data: normalizeAppState(data),
   };
 }
