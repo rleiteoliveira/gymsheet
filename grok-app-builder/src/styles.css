@@ -1,0 +1,112 @@
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500;1,9..144,600&family=Outfit:wght@400;500;600;700&display=swap");
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #11110f;
+  --color-surface: #181714;
+  --color-elevated: #22211c;
+  --color-fg: #f4f1ea;
+  --color-muted: #9a9588;
+  --color-subtle: #6c675c;
+  --color-border: rgb(244 241 234 / 0.1);
+  --color-border-strong: rgb(244 241 234 / 0.18);
+  --color-primary: #f4f1ea;
+  --color-primary-fg: #11110f;
+  --color-danger: #c96b63;
+  --color-ok: #8f9b82;
+  --color-ring: #f4f1ea;
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+  --shadow-border: 0 0 0 1px rgb(244 241 234 / 0.08);
+  --shadow-focus: 0 0 0 3px rgb(244 241 234 / 0.2);
+  --scale-96: 0.96;
+}
+
+@layer base {
+  html {
+    min-width: 320px;
+    background: var(--color-bg);
+    color: var(--color-fg);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  ::selection {
+    background: rgb(244 241 234 / 0.18);
+    color: var(--color-fg);
+  }
+}
+
+@utility font-display {
+  font-family: var(--font-display);
+}
+
+.sheet-enter {
+  animation: sheet-in 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.stagger-in > * {
+  animation: sheet-in 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.stagger-in > *:nth-child(1) {
+  animation-delay: 0ms;
+}
+.stagger-in > *:nth-child(2) {
+  animation-delay: 40ms;
+}
+.stagger-in > *:nth-child(3) {
+  animation-delay: 80ms;
+}
+.stagger-in > *:nth-child(4) {
+  animation-delay: 120ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
