@@ -1,30 +1,16 @@
-# GymSheet — snapshot Grok App Builder
+# GymSheet — port no Grok App Builder
 
-Branch de trabalho do Grok (`feat/grok-app-builder`). **Não substitui a app vinext em produção.**
+Branch `feat/grok-app-builder`. Referência: [rleiteoliveira/gymsheet](https://github.com/rleiteoliveira/gymsheet) (`main`, vinext + Cloudflare).
 
-Esta pasta é o recorte de produto reconstruído no Grok App Builder (TanStack Start + Zustand/`localStorage`):
+Este recorte é a migração do app de produção para o projeto Grok:
 
-- fichas, sessão ao vivo, histórico semanal
-- começar agora / retomar / sessão livre
-- editor de plano, catálogo, backup JSON e CSV
-- UI mobile-first (Hoje / Fichas / Semana)
+- mesmo domínio (fichas, sessões, calendário civil local, catálogo free-exercise-db)
+- IndexedDB `treino-de-hoje` e backup JSON v1/v2 (e v3 `gymsheet`)
+- fluxo de hoje não muta sessão de outro dia; calendário corrige o passado
+- paleta mais quieta (papel sobre preto quente) no mesmo layout
 
-A `main` continua sendo a PWA vinext + IndexedDB + Cloudflare Workers.
+A `main` continua sendo a PWA vinext em produção.
 
-## O que vem aqui
+## Compatibilidade de backup
 
-| caminho | conteúdo |
-|---|---|
-| `src/components/app/` | telas (hoje, sessão, fichas, editor, histórico, settings) |
-| `src/lib/gym/` | domínio (tipos, store, sessão, catálogo, demo, backup) |
-| `src/styles.css` | tokens visuais desta reconstrução |
-| `src/routes/index.tsx` | entry da rota `/` no scaffold TanStack |
-| `public/` | favicon e card OG usados no preview |
-
-Não inclui o scaffold de plataforma do App Builder (`auth`, `db`, `__grok`, scripts internos).
-
-## Como usar
-
-Serve como referência para portar ideias/UI de volta à app vinext, não como deploy.
-
-Se quiser promover alguma parte: fatia em `docs/slices/`, PR curto em `feat/*`.
+O JSON exportado da `main` (`app: "treino-de-hoje"`, schema 1 ou 2) restaura aqui em Dados → Restaurar backup.
