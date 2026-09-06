@@ -1,51 +1,297 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { mkdir } from 'node:fs/promises';
+import { FALLBACK_EXERCISES, toSnapshot } from '../lib/catalog';
+import { createQuickSession, createSessionFromPlan } from '../lib/session';
+import type { AppState, Plan } from '../lib/types';
 
-test('começa um treino, registra uma série, finaliza e abre a Semana', async ({ page }) => {
-  await page.route('**/free-exercise-db/main/dist/exercises.json', (route) => route.abort());
+test.use({ timezoneId: 'America/Fortaleza' });
+const now = new Date('2026-09-06T15:00:00Z');
+const yesterday = new Date('2026-09-05T15:00:00Z');
+const empty: AppState = { plans: [], sessions: [], todayPin: null };
+const plan: Plan = {
+  id: 'plan-peito', name: 'Peito', emoji: null, createdAt: now.toISOString(), updatedAt: now.toISOString(),
+  exercises: [{ id: 'plan-exercise', order: 0, exercise: { ...toSnapshot(FALLBACK_EXERCISES[0]), images: [] }, targetSets: 1, targetReps: 10, targetKg: 20 }],
+};
+const pinned: AppState = { plans: [plan], sessions: [], todayPin: { kind: 'plan', id: plan.id } };
+
+async function readState(page: Page): Promise<AppState> {
+  return page.evaluate(() => new Promise((resolve, reject) => {
+    const request = indexedDB.open('treino-de-hoje', 1);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      const transaction = db.transaction('app', 'readonly');
+      const value = transaction.objectStore('app').get('state');
+      value.onsuccess = () => resolve(value.result ?? { plans: [], sessions: [], todayPin: null });
+      value.onerror = () => reject(value.error);
+      transaction.oncomplete = () => db.close();
+    };
+  }));
+}
+
+async function openApp(page: Page, state?: AppState, offline = false) {
+  await page.clock.setFixedTime(now);
+  await page.route('**/free-exercise-db/main/dist/exercises.json', (route) => offline
+    ? route.abort()
+    : route.fulfill({ json: FALLBACK_EXERCISES.map((exercise) => ({ ...exercise, images: [] })) }));
+  await page.route('**/free-exercise-db/main/exercises/**', (route) => route.abort());
   await page.goto('/');
+  await expect(page.getByTestId('start-workout')).toBeVisible();
+  if (state) {
+    await page.evaluate((data) => new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open('treino-de-hoje', 1);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const db = request.result;
+        const tx = db.transaction('app', 'readwrite');
+        tx.objectStore('app').put(data, 'state');
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => reject(tx.error);
+      };
+    }), state);
+    await page.reload();
+    await expect(page.getByTestId('start-workout')).toBeVisible();
+  }
+}
 
+async function goTo(page: Page, destination: string) {
+  await page.getByRole('button', { name: 'Abrir menu', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'GymSheet', exact: true });
+  await dialog.getByRole('button', { name: destination, exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator('main h1')).toBeFocused();
+}
+
+async function capture(page: Page, info: TestInfo, name: string) {
+  await mkdir('output/playwright', { recursive: true });
+  const path = 'output/playwright/' + name + '.png';
+  const menu = page.locator('.essential-menu');
+  const menuOpen = await menu.count() > 0;
+  if (menuOpen) {
+    await expect(menu).toHaveCSS('transform', 'none');
+    await expect(page.locator('.essential-menu-overlay')).toHaveCSS('opacity', '1');
+  }
+  await page.screenshot({ path, fullPage: !menuOpen, animations: 'disabled' });
+  await info.attach(name, { path, contentType: 'image/png' });
+}
+
+test('começa livre, persiste série, recarrega, retoma o mesmo ID e conclui no calendário', async ({ page }) => {
+  await openApp(page);
   const launcher = page.getByTestId('start-workout');
-  await expect(launcher).toBeVisible();
-  await expect(launcher).toHaveText('Começar treino');
+  await expect(launcher).toHaveText('Começar');
   await launcher.click();
-
-  const quickStartDialog = page.getByRole('dialog', { name: 'Começar treino' });
-  await expect(quickStartDialog).toBeVisible();
-  await quickStartDialog.getByLabel('Nome do treino').fill('Treino E2E');
-  const chestChip = quickStartDialog.getByRole('button', { name: 'Peito', exact: true });
-  if (await chestChip.count()) await chestChip.click();
-  await quickStartDialog.getByRole('button', { name: 'Começar treino', exact: true }).click();
-
-  const pickerDialog = page.getByRole('dialog', { name: 'Adicionar na sessão' });
-  await expect(pickerDialog).toBeVisible();
-  await pickerDialog.locator('button.picker-item').first().click();
-
-  await expect(page.getByTestId('quick-set-done')).toBeVisible();
+  const quickStart = page.getByRole('dialog', { name: 'Começar treino', exact: true });
+  await quickStart.getByLabel('Nome do treino').fill('Treino E2E');
+  await quickStart.getByRole('button', { name: 'Começar treino', exact: true }).click();
+  const picker = page.getByRole('dialog', { name: 'Adicionar na sessão' });
+  await picker.locator('button.picker-item').first().click();
+  await page.getByLabel('Peso em quilogramas').fill('25');
+  await page.getByLabel('Repetições', { exact: true }).fill('12');
   await page.getByTestId('quick-set-done').click();
-  await expect(page.getByTestId('start-workout')).toHaveCount(0);
-
+  await expect.poll(async () => (await readState(page)).sessions[0]?.exercises[0]?.sets.length).toBe(1);
+  const recorded = (await readState(page)).sessions[0];
+  expect(recorded.exercises[0].sets[0]).toMatchObject({ kg: 25, reps: 12 });
+  await expect(launcher).toHaveCount(0);
   await page.getByRole('button', { name: 'Voltar', exact: true }).click();
-  await expect(launcher).toBeVisible();
-  await expect(launcher).toHaveText('Retomar treino');
+  await page.reload();
+  await expect(launcher).toHaveText('Retomar');
+  await expect(page.getByRole('button', { name: /Escolher ficha:/ })).toHaveCount(0);
   await launcher.click();
   await expect(page.getByRole('heading', { name: 'Treino E2E', exact: true })).toBeVisible();
   await expect(page.getByText('Série 1', { exact: true })).toBeVisible();
-
-  await expect(page.getByTestId('finish-workout')).toBeVisible();
+  expect((await readState(page)).sessions).toEqual([recorded]);
   await page.getByTestId('finish-workout').click();
-  await expect(launcher).toBeVisible();
-  await expect(launcher).toHaveText('Começar treino');
-
-  await page.getByTestId('week-tab').click();
+  await expect(launcher).toHaveText('Começar');
+  await expect.poll(async () => (await readState(page)).sessions[0]?.state).toBe('completed');
+  const completed = (await readState(page)).sessions[0];
+  expect(completed).toMatchObject({ id: recorded.id, exercises: recorded.exercises, completedAt: now.toISOString() });
+  await page.reload();
+  await goTo(page, 'Calendário');
   await expect(page.getByRole('heading', { name: 'Calendário', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: /Treino E2E/ })).toBeVisible();
   await expect(page.getByText('Concluída', { exact: true })).toBeVisible();
-  await expect(launcher).toBeVisible();
+  await expect(launcher).toHaveCount(0);
+  expect((await readState(page)).sessions).toEqual([completed]);
+  await goTo(page, 'Treino');
+  await launcher.click();
+  await expect(quickStart).toBeVisible();
+  expect((await readState(page)).sessions).toEqual([completed]);
+});
 
-  await page.getByRole('button', { name: 'Fichas', exact: true }).click();
-  await expect(launcher).toBeVisible();
-  await page.getByTestId('week-tab').click();
-  await expect(launcher).toBeVisible();
-  await page.getByRole('button', { name: 'Dados', exact: true }).click();
-  await expect(launcher).toBeVisible();
+test('nome abre Fichas e fixar permanece explícito, sem criar sessão', async ({ page }) => {
+  await openApp(page, { ...empty, plans: [plan] });
+  const selector = page.getByRole('button', { name: 'Escolher ficha: Treino livre', exact: true });
+  await selector.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('main h1')).toBeFocused();
+  expect(await readState(page)).toEqual({ ...empty, plans: [plan] });
+  await page.getByRole('button', { name: 'Fixar Peito', exact: true }).click();
+  await expect.poll(async () => (await readState(page)).todayPin).toEqual(pinned.todayPin);
+  await goTo(page, 'Treino');
+  await expect(page.getByRole('button', { name: 'Escolher ficha: Peito', exact: true })).toBeVisible();
+  expect((await readState(page)).sessions).toEqual([]);
+  await page.getByTestId('start-workout').click();
+  await expect(page.getByRole('heading', { name: 'Peito', exact: true })).toBeVisible();
+  await expect.poll(async () => (await readState(page)).sessions.length).toBe(1);
+  expect((await readState(page)).sessions[0]).toMatchObject({ sourcePlanId: plan.id, sourcePlanName: plan.name, state: 'in_progress' });
+});
+
+test('menu oferece cinco destinos, contém foco e fecha por teclado e clique externo', async ({ page }) => {
+  await openApp(page, pinned);
+  const trigger = page.getByRole('button', { name: 'Abrir menu', exact: true });
+  await trigger.focus();
+  await page.keyboard.press('Enter');
+  const dialog = page.getByRole('dialog', { name: 'GymSheet', exact: true });
+  const close = dialog.getByRole('button', { name: 'Fechar menu', exact: true });
+  await expect(close).toBeFocused();
+  await expect(dialog.getByRole('navigation').getByRole('button')).toHaveCount(5);
+  await expect(dialog.getByRole('button', { name: 'Treino', exact: true })).toHaveAttribute('aria-current', 'page');
+  await page.keyboard.press('Shift+Tab');
+  await expect(dialog.getByRole('button', { name: 'Dados e backup', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(close).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await page.mouse.click(380, 420);
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  expect(await readState(page)).toEqual(pinned);
+  await trigger.click();
+  await close.click();
+  await expect(trigger).toBeFocused();
+  for (const [destination, title] of [
+    ['Fichas', 'Fichas e sessões'], ['Histórico', 'Fichas e sessões'],
+    ['Calendário', 'O que aconteceu'], ['Dados e backup', 'Seu histórico é seu'], ['Treino', 'Peito'],
+  ]) {
+    await goTo(page, destination);
+    await expect(page.locator('main h1')).toContainText(title);
+    if (destination === 'Fichas') await expect(page.getByRole('heading', { name: 'Peito', exact: true })).toBeVisible();
+    if (destination === 'Histórico') await expect(page.getByRole('heading', { name: 'Nenhuma sessão ainda', exact: true })).toBeVisible();
+    await expect(page.getByTestId('start-workout')).toHaveCount(destination === 'Treino' ? 1 : 0);
+  }
+  expect(await readState(page)).toEqual(pinned);
+});
+
+for (const action of ['Agora não', 'Retomar ontem', 'Encerrar ontem e começar hoje']) {
+  test('sessão anterior exige decisão explícita: ' + action, async ({ page }) => {
+    const previous = {
+      ...createQuickSession('Ontem', yesterday, () => 'previous'),
+      exercises: [{ id: 'previous-exercise', order: 0, planned: null, performed: toSnapshot(FALLBACK_EXERCISES[0]), status: 'added' as const,
+        sets: [{ id: 'previous-set', index: 1, kg: 60, reps: 8, savedAt: yesterday.toISOString() }] }],
+    };
+    const state: AppState = { ...pinned, sessions: [previous] };
+    await openApp(page, state);
+    await page.getByTestId('start-workout').click();
+    const dialog = page.getByRole('dialog', { name: 'Treino anterior ainda aberto', exact: true });
+    await expect(dialog).toBeVisible();
+    expect(await readState(page)).toEqual(state);
+    await dialog.getByRole('button', { name: action, exact: true }).last().click();
+    await expect(dialog).toHaveCount(0);
+    if (action === 'Encerrar ontem e começar hoje') {
+      await expect.poll(async () => (await readState(page)).sessions.length).toBe(2);
+      const sessions = (await readState(page)).sessions;
+      expect(sessions[0]).toEqual({ ...previous, state: 'completed', completedAt: now.toISOString() });
+      expect(sessions[1]).toMatchObject({ sourcePlanId: plan.id, startedAt: now.toISOString(), state: 'in_progress' });
+    } else {
+      expect(await readState(page)).toEqual(state);
+      if (action === 'Retomar ontem') await expect(page.getByRole('heading', { name: 'Ontem', exact: true })).toBeVisible();
+      else await expect(page.getByTestId('start-workout')).toHaveText('Começar');
+    }
+  });
+}
+
+test('sessão concluída permanece intacta ao começar outro treino com ficha', async ({ page }) => {
+  const completed = { ...createSessionFromPlan(plan, now, () => 'completed'), state: 'completed' as const, completedAt: now.toISOString() };
+  await openApp(page, { ...pinned, sessions: [completed] });
+  await expect(page.getByTestId('start-workout')).toHaveText('Começar');
+  await page.getByTestId('start-workout').click();
+  await expect.poll(async () => (await readState(page)).sessions.length).toBe(2);
+  const sessions = (await readState(page)).sessions;
+  expect(sessions[0]).toEqual(completed);
+  expect(sessions[1].id).not.toBe(completed.id);
+});
+
+for (const variant of ['livre', 'fixada', 'retomada', 'menu'] as const) {
+  test('composição mobile: ' + variant, async ({ page }, info) => {
+    const session = createQuickSession('Treino de hoje', now, () => 'today-session');
+    const state = variant === 'livre' ? empty : variant === 'retomada'
+      ? { ...empty, sessions: [session], todayPin: { kind: 'session' as const, id: session.id } } : pinned;
+    await openApp(page, state);
+    await expect(page.locator('.essential-date')).toHaveText('Domingo, 6 de setembro');
+    await expect(page.locator('.bottom-nav, .workout-dock, .today-progress, .last-session-row, .online-pill')).toHaveCount(0);
+    if (variant === 'menu') {
+      await page.getByRole('button', { name: 'Abrir menu', exact: true }).click();
+      await expect(page.getByRole('dialog')).toBeVisible();
+    } else {
+      await expect(page.locator('main button')).toHaveCount(variant === 'retomada' ? 1 : 2);
+    }
+    await capture(page, info, 'essencial-' + variant);
+  });
+}
+
+test('nome longo, texto a 200%, contraste, alvos e menu em 320px e desktop', async ({ page }, info) => {
+  const longPlan = { ...plan, name: 'Peito, ombros e tríceps — treino completo com exercícios complementares' };
+  await openApp(page, { ...pinned, plans: [longPlan] });
+  for (const width of [320, 1280]) {
+    await page.setViewportSize({ width, height: 844 });
+    for (const fontSize of ['100%', '200%']) {
+      await page.evaluate((value) => { document.documentElement.style.fontSize = value; }, fontSize);
+      await expect(page.getByRole('button', { name: 'Escolher ficha: ' + longPlan.name, exact: true })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      for (const button of await page.locator('.essential-header button, .essential-main button').all()) {
+        const box = await button.boundingBox();
+        expect(box!.width).toBeGreaterThanOrEqual(48);
+        expect(box!.height).toBeGreaterThanOrEqual(48);
+      }
+      const start = await page.getByTestId('start-workout').boundingBox();
+      expect(start!.height).toBeGreaterThanOrEqual(52);
+      const title = await page.locator('main h1').boundingBox();
+      expect(start!.y).toBeGreaterThanOrEqual(title!.y + title!.height);
+      if (width === 1280) expect((await page.locator('main').boundingBox())!.width).toBeLessThanOrEqual(560);
+      await page.getByRole('button', { name: 'Abrir menu', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: 'GymSheet', exact: true });
+      await expect(dialog).toBeVisible();
+      for (const button of await dialog.getByRole('button').all()) {
+        const box = await button.boundingBox();
+        expect(box!.width).toBeGreaterThanOrEqual(48);
+        expect(box!.height).toBeGreaterThanOrEqual(48);
+      }
+      expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+      await capture(page, info, 'essencial-menu-' + width + '-' + fontSize.replace('%', ''));
+      await page.keyboard.press('Escape');
+      await expect(dialog).toHaveCount(0);
+    }
+  }
+  const contrast = await page.evaluate(() => {
+    const luminance = (color: string) => {
+      const rgb = color.match(/[\d.]+/g)!.slice(0, 3).map(Number).map((v) => v / 255).map((v) => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4);
+      return rgb[0] * .2126 + rgb[1] * .7152 + rgb[2] * .0722;
+    };
+    const ratio = (a: string, b: string) => (Math.max(luminance(a), luminance(b)) + .05) / (Math.min(luminance(a), luminance(b)) + .05);
+    const background = getComputedStyle(document.querySelector('.essential-home')!).backgroundColor;
+    const date = getComputedStyle(document.querySelector('.essential-date')!);
+    const button = getComputedStyle(document.querySelector('.essential-start')!);
+    return { text: ratio(date.color, background), buttonText: ratio(button.color, button.backgroundColor), control: ratio(button.backgroundColor, background) };
+  });
+  expect(contrast.text).toBeGreaterThanOrEqual(4.5);
+  expect(contrast.buttonText).toBeGreaterThanOrEqual(4.5);
+  expect(contrast.control).toBeGreaterThanOrEqual(3);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.getByRole('button', { name: 'Abrir menu', exact: true }).click();
+  await expect(page.locator('.essential-menu')).toHaveCSS('transition-duration', '0s');
+  await expect(page.locator('.essential-menu-overlay')).toHaveCSS('transition-duration', '0s');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Abrir menu', exact: true })).toBeFocused();
+});
+
+test('catálogo indisponível mantém aviso e status acessível em Dados', async ({ page }) => {
+  await openApp(page, undefined, true);
+  await expect(page.getByText('Catálogo offline.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Tentar', exact: true })).toBeVisible();
+  await goTo(page, 'Dados e backup');
+  await expect(page.getByText('Catálogo de exercícios', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Baixar JSON', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Baixar CSV', exact: true })).toBeVisible();
 });
