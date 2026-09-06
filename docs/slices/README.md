@@ -26,6 +26,7 @@ Contrato de execução. A issue é a intenção; o slice é o que o executor pod
 
 | Slice | Status | Issue |
 |---|---|---|
+| [25-interface-essencial](./25-interface-essencial.md) | draft | pendente |
 | [24-deploy-continuo](./24-deploy-continuo.md) | doing | #8 |
 | [23-hoje-foco-no-treino](./23-hoje-foco-no-treino.md) | done | #23 |
 | [21-zero-qa-e2e](./21-zero-qa-e2e.md) | done | #21 |
