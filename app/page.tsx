@@ -8,6 +8,7 @@ import {
   ArrowUp,
   CalendarDays,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   CircleCheck,
@@ -20,6 +21,7 @@ import {
   History,
   Info,
   ListPlus,
+  Menu,
   Pin,
   PinOff,
   Play,
@@ -33,6 +35,7 @@ import {
   Upload,
   X,
 } from 'lucide-react';
+import { Dialog } from '@base-ui/react/dialog';
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { createBackup, loadAppState, parseBackup, restoreAppState, saveAppState } from '@/lib/storage';
 import { FALLBACK_EXERCISES, imageUrl, loadCatalog, toSnapshot } from '@/lib/catalog';
@@ -154,12 +157,6 @@ function formatSessionDuration(startedAt: string, now: Date) {
   const seconds = elapsedSeconds % 60;
   if (hours > 0) return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-}
-
-function formatDurationLabel(startedAt: string, completedAt: string | null) {
-  if (!completedAt) return '';
-  const minutes = Math.max(1, Math.round((new Date(completedAt).getTime() - new Date(startedAt).getTime()) / 60000));
-  return `${minutes} min`;
 }
 
 function formatDateKeyLabel(dateKey: string, options: Intl.DateTimeFormatOptions = {}) {
@@ -368,6 +365,17 @@ export default function Home() {
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState<Tab>('today');
   const [folderTab, setFolderTab] = useState<FolderTab>('plans');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [navigationVersion, setNavigationVersion] = useState(0);
+  const shellRef = useRef<HTMLDivElement>(null);
+  const menuCloseRef = useRef<HTMLButtonElement>(null);
+  const focusDestinationRef = useRef(false);
+
+  useEffect(() => {
+    if (!navigationVersion) return;
+    const frame = requestAnimationFrame(() => shellRef.current?.querySelector<HTMLElement>('main h1')?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [navigationVersion]);
   const [sessionViewId, setSessionViewId] = useState<string | null>(null);
   const [activeExerciseId, setActiveExerciseId] = useState<string | null>(null);
   const [composerKg, setComposerKg] = useState('');
@@ -535,12 +543,6 @@ export default function Home() {
     [state.sessions, todayKey],
   );
   const weekStats = useMemo(() => getWeekStats(state.sessions), [state.sessions]);
-  const lastCompletedSession = useMemo(
-    () => [...state.sessions]
-      .filter((session) => session.state === 'completed')
-      .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0],
-    [state.sessions],
-  );
   const calendarDays = useMemo(() => calendarGrid(calendarCursor, state.sessions, today), [calendarCursor, state.sessions, today]);
   const selectedCalendarSessions = useMemo(() => sessionsForDate(state.sessions, calendarSelectedDateKey), [state.sessions, calendarSelectedDateKey]);
   const favoriteScores = useMemo(() => computeFavoriteScores(state.sessions, today), [state.sessions, today]);
@@ -1019,17 +1021,65 @@ export default function Home() {
     }
   }
 
+  function navigate(destination: Tab, subtab?: FolderTab) {
+    focusDestinationRef.current = true;
+    setTab(destination);
+    if (subtab) setFolderTab(subtab);
+    if (!menuOpen) setNavigationVersion((current) => current + 1);
+    setMenuOpen(false);
+  }
+
   function renderHeader() {
+    const destinations = [
+      { label: 'Treino', tab: 'today' as const, icon: Activity },
+      { label: 'Fichas', tab: 'folder' as const, subtab: 'plans' as const, icon: FolderOpen },
+      { label: 'Histórico', tab: 'folder' as const, subtab: 'sessions' as const, icon: History },
+      { label: 'Calendário', tab: 'week' as const, icon: CalendarDays },
+      { label: 'Dados e backup', tab: 'data' as const, icon: Database },
+    ];
     return (
-      <header className="topbar">
-        <div className="brand">
-          <div className="brand-mark" aria-hidden="true"><Dumbbell size={22} strokeWidth={2.7} /></div>
-          <div>
-            <p className="brand-title">GymSheet</p>
-            <p className="brand-subtitle">Seu treino, no seu ritmo.</p>
-          </div>
-        </div>
-        <span className={`online-pill ${catalogMeta.source}`} aria-live="polite">{sourceLabel(catalogMeta.source)}</span>
+      <header className="essential-header">
+        <Dialog.Root open={menuOpen} onOpenChange={(open) => {
+          if (open) focusDestinationRef.current = false;
+          setMenuOpen(open);
+        }} onOpenChangeComplete={(open) => {
+          if (!open && focusDestinationRef.current) setNavigationVersion((current) => current + 1);
+        }}>
+          <Dialog.Trigger className="essential-icon-button" aria-label="Abrir menu">
+            <Menu size={24} aria-hidden="true" />
+          </Dialog.Trigger>
+          <Dialog.Portal>
+            <Dialog.Backdrop className="essential-menu-overlay" />
+            <Dialog.Popup
+              className="essential-menu"
+              initialFocus={menuCloseRef}
+              finalFocus={() => !focusDestinationRef.current}
+            >
+              <div className="essential-menu-heading">
+                <Dialog.Title className="essential-brand">GymSheet</Dialog.Title>
+                <Dialog.Close ref={menuCloseRef} className="essential-icon-button" aria-label="Fechar menu">
+                  <X size={24} aria-hidden="true" />
+                </Dialog.Close>
+              </div>
+              <nav aria-label="Navegação principal" className="essential-menu-links">
+                {destinations.map(({ label, tab: destination, subtab, icon: Icon }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    className="essential-menu-link"
+                    aria-current={tab === destination && (!subtab || folderTab === subtab) ? 'page' : undefined}
+                    data-testid={destination === 'week' ? 'week-tab' : undefined}
+                    onClick={() => navigate(destination, subtab)}
+                  >
+                    <Icon size={20} aria-hidden="true" />
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </nav>
+            </Dialog.Popup>
+          </Dialog.Portal>
+        </Dialog.Root>
+        <p className="essential-brand">GymSheet</p>
       </header>
     );
   }
@@ -1067,79 +1117,40 @@ export default function Home() {
     );
   }
 
-  function renderWorkoutDock() {
-    const hasTodaySession = Boolean(todayInProgressSession);
+  function renderToday() {
+    const workoutName = todayInProgressSession
+      ? todayInProgressSession.sourcePlanName ?? 'Sessão vazia'
+      : pinnedPlan ? (pinnedPlan.emoji ? pinnedPlan.emoji + ' ' : '') + pinnedPlan.name : 'Treino livre';
     return (
-      <div className="workout-dock">
-        <div className="workout-dock-inner">
+      <main className="essential-main">
+        <section aria-labelledby="today-title" className="essential-workout">
+          <p className="essential-date">{capitalizeFirst(formatDate(today, { weekday: 'long', day: 'numeric', month: 'long' }))}</p>
+          <h1 id="today-title" className="essential-title" tabIndex={-1}>
+            {todayInProgressSession ? workoutName : (
+              <button
+                type="button"
+                className="essential-selector"
+                aria-label={'Escolher ficha: ' + workoutName}
+                onClick={() => navigate('folder', 'plans')}
+              >
+                <span>{workoutName}</span><ChevronDown size={24} aria-hidden="true" />
+              </button>
+            )}
+          </h1>
           <button
-            className="btn btn-primary"
+            className="essential-start"
             type="button"
             data-testid="start-workout"
             onClick={() => {
-              if (hasTodaySession) {
-                startSession();
-                return;
-              }
-              if (pinnedPlan) {
-                startSession(pinnedPlan);
-                return;
-              }
-              openQuickStart();
+              if (todayInProgressSession) startSession();
+              else if (pinnedPlan) startSession(pinnedPlan);
+              else openQuickStart();
             }}
           >
-            {hasTodaySession ? <RotateCcw size={18} /> : <Play size={18} fill="currentColor" />} {hasTodaySession ? 'Retomar treino' : 'Começar treino'}
+            {todayInProgressSession ? 'Retomar' : 'Começar'}
           </button>
-        </div>
-      </div>
-    );
-  }
-
-  function renderToday() {
-    const resolved = todayInProgressSession?.exercises.filter((exercise) => exercise.status !== null).length ?? 0;
-    const total = todayInProgressSession?.exercises.length ?? 0;
-    const progress = total ? Math.round((resolved / total) * 100) : 0;
-    const lastSessionDuration = lastCompletedSession ? formatDurationLabel(lastCompletedSession.startedAt, lastCompletedSession.completedAt) : '';
-    return (
-      <main className="app-main today-main">
-        <section className="today-heading" aria-labelledby="today-title">
-          <p className="eyebrow">Hoje</p>
-          <h1 id="today-title" className="page-title">Hoje</h1>
-          <p className="today-date">{capitalizeFirst(formatDate(today, { weekday: 'long', day: 'numeric', month: 'long' }))}</p>
         </section>
-        {catalogMeta.error && <div className="today-warning">{renderWarning()}</div>}
-
-        {todayInProgressSession ? (
-          <section className="today-context" aria-labelledby="today-context-title">
-            <div className="today-context-label"><Activity size={16} /> Treino em andamento</div>
-            <h2 id="today-context-title" className="today-context-title">{todayInProgressSession.sourcePlanName ?? 'Sessão vazia'}</h2>
-            <div className="today-progress">
-              <div className="progress-track" aria-label={`${resolved} de ${total || 0} exercícios resolvidos`}><span style={{ width: `${progress}%` }} /></div>
-              <p className="today-context-detail">{resolved} de {total || 0} exercícios resolvidos</p>
-            </div>
-          </section>
-        ) : pinnedPlan ? (
-          <section className="today-context" aria-labelledby="today-context-title">
-            <div className="today-context-label"><Pin size={16} /> Ficha fixada</div>
-            <h2 id="today-context-title" className="today-context-title">{pinnedPlan.emoji ? `${pinnedPlan.emoji} ` : ''}{pinnedPlan.name}</h2>
-            <p className="today-context-detail">{pinnedPlan.exercises.length} exercícios</p>
-            <div className="today-context-actions"><button className="btn btn-quiet" type="button" onClick={() => { setTab('folder'); setFolderTab('plans'); }}><RotateCcw size={17} /> Trocar</button></div>
-          </section>
-        ) : (
-          <section className="today-context" aria-labelledby="today-context-title">
-            <div className="today-context-label"><Activity size={16} /> Treino livre</div>
-            <h2 id="today-context-title" className="today-context-title">Sem ficha fixada</h2>
-            <div className="today-context-actions"><button className="btn btn-quiet" type="button" onClick={() => { setTab('folder'); setFolderTab('plans'); }}><FolderOpen size={17} /> Escolher ficha</button></div>
-          </section>
-        )}
-
-        {lastCompletedSession && (
-          <button className="last-session-row" type="button" onClick={() => { setTab('folder'); setFolderTab('sessions'); }} aria-label={`Abrir último treino ${lastCompletedSession.sourcePlanName ?? 'Sessão vazia'}`}>
-            <History size={20} />
-            <span className="last-session-copy"><span>Último treino</span><strong>{formatDate(lastCompletedSession.startedAt, { weekday: 'long' })}{lastSessionDuration ? ` · ${lastSessionDuration}` : ''}</strong></span>
-            <ChevronRight size={18} />
-          </button>
-        )}
+        {catalogMeta.error && <div className="essential-warning">{renderWarning()}</div>}
       </main>
     );
   }
@@ -1147,7 +1158,7 @@ export default function Home() {
   function renderFolder() {
     return (
       <main className="app-main">
-        <section><p className="eyebrow">Fichas</p><h1 className="page-title">Fichas e sessões</h1><p className="page-lede">Planeje antes. Guarde o que realmente aconteceu.</p></section>
+        <section><p className="eyebrow">Fichas</p><h1 className="page-title" tabIndex={-1}>Fichas e sessões</h1><p className="page-lede">Planeje antes. Guarde o que realmente aconteceu.</p></section>
         <div className="tabs"><button className={`tab ${folderTab === 'plans' ? 'active' : ''}`} type="button" onClick={() => setFolderTab('plans')}>Fichas ({state.plans.length})</button><button className={`tab ${folderTab === 'sessions' ? 'active' : ''}`} type="button" onClick={() => setFolderTab('sessions')}>Sessões ({state.sessions.length})</button></div>
         {folderTab === 'plans' ? (
           state.plans.length ? <div className="list">{state.plans.map((plan) => <div className="list-card" key={plan.id}><div className="list-card-main"><h3>{plan.emoji ? `${plan.emoji} ` : ''}{plan.name}</h3><p>{plan.exercises.length} exercícios · {state.todayPin?.kind === 'plan' && state.todayPin.id === plan.id ? 'pinada hoje' : `atualizada ${formatDate(plan.updatedAt)}`}</p></div><div className="list-card-actions"><button className="btn btn-secondary btn-small" type="button" onClick={() => openPlanEditor(plan)} aria-label={`Editar ${plan.name}`}>Editar</button>{state.todayPin?.kind === 'plan' && state.todayPin.id === plan.id ? <button className="btn btn-quiet btn-small" type="button" onClick={clearPin}><PinOff size={14} /></button> : <button className="btn btn-secondary btn-small" type="button" onClick={() => pinPlan(plan.id)} aria-label={`Fixar ${plan.name}`}><Pin size={14} /></button>}<button className="btn btn-danger btn-small" type="button" onClick={() => deletePlan(plan.id)} aria-label={`Excluir ${plan.name}`}><Trash2 size={14} /></button></div></div>)}</div> : <div className="surface empty"><div className="empty-icon"><FolderOpen size={24} /></div><h2>A pasta está vazia</h2><p>Crie uma ficha com seus exercícios e alvos de séries.</p><button className="btn btn-primary" type="button" onClick={() => openPlanEditor()}><Plus size={18} /> Criar primeira ficha</button></div>
@@ -1201,7 +1212,7 @@ export default function Home() {
   function renderWeek() {
     return (
       <main className="app-main">
-        <section><p className="eyebrow">Semana atual</p><h1 className="page-title">O que aconteceu</h1><p className="page-lede">{weekStats.label}. Sem gráfico, só sinais úteis para o próximo treino.</p></section>
+        <section><p className="eyebrow">Semana atual</p><h1 className="page-title" tabIndex={-1}>O que aconteceu</h1><p className="page-lede">{weekStats.label}. Sem gráfico, só sinais úteis para o próximo treino.</p></section>
         <div className="metric-grid" style={{ marginTop: 22 }}><div className="metric"><strong>{weekStats.days}</strong><span>dias treinados</span></div><div className="metric"><strong>{weekStats.sessions}</strong><span>sessões</span></div><div className="metric"><strong>{weekStats.series}</strong><span>séries salvas</span></div></div>
         {renderCalendar()}
         <div style={{ display: 'grid', gap: 11, marginTop: 22 }}>{renderRankCard('Top skipped', weekStats.skipped, 'Nenhum exercício pulado.', 'skipped')}{renderRankCard('Top swapped', weekStats.swapped, 'Nenhum exercício trocado.', 'swapped')}{renderRankCard('Top added', weekStats.added, 'Nenhum exercício adicionado.', 'added')}</div>
@@ -1214,7 +1225,7 @@ export default function Home() {
     const lastSync = catalogMeta.savedAt ? formatDateTime(catalogMeta.savedAt) : 'ainda não sincronizado';
     return (
       <main className="app-main">
-        <section><p className="eyebrow">Dados</p><h1 className="page-title">Seu histórico é seu</h1><p className="page-lede">Faça uma cópia antes de trocar de aparelho. Nada é enviado para uma conta.</p></section>
+        <section><p className="eyebrow">Dados</p><h1 className="page-title" tabIndex={-1}>Seu histórico é seu</h1><p className="page-lede">Faça uma cópia antes de trocar de aparelho. Nada é enviado para uma conta.</p></section>
         <section className="surface data-card" style={{ marginTop: 22 }}>
           <div className="data-row"><div><strong>Catálogo de exercícios</strong><p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 11 }}>{catalogLoading ? 'sincronizando…' : sourceLabel(catalogMeta.source)}</p></div><button className="btn btn-secondary btn-small" type="button" onClick={() => void refreshCatalog()} disabled={catalogLoading}><RefreshCw size={14} className={catalogLoading ? 'spin' : undefined} /> Atualizar</button></div>
           <div className="data-row"><strong>Última cópia do catálogo</strong><span>{lastSync}</span></div>
@@ -1378,5 +1389,5 @@ export default function Home() {
 
   if (sessionViewId) return <>{renderSession()}{renderPlanModal()}{renderPickerModal()}{renderQuickStartModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{toast && <output className="toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</>;
 
-  return <div className="app-shell">{renderHeader()}{catalogLoading && <div className="app-main" style={{ paddingTop: 0 }}><p style={{ color: 'var(--muted)', fontSize: 11 }}>Sincronizando catálogo…</p></div>}{tab === 'today' && renderToday()}{tab === 'folder' && renderFolder()}{tab === 'week' && renderWeek()}{tab === 'data' && renderData()}{renderWorkoutDock()}<nav className="bottom-nav" aria-label="Navegação principal"><div className="bottom-nav-inner"><button className={`nav-item ${tab === 'today' ? 'active' : ''}`} type="button" onClick={() => setTab('today')}><Activity size={19} /><span>Hoje</span></button><button className={`nav-item ${tab === 'folder' ? 'active' : ''}`} type="button" onClick={() => setTab('folder')}><FolderOpen size={19} /><span>Fichas</span></button><button className={`nav-item ${tab === 'week' ? 'active' : ''}`} type="button" data-testid="week-tab" onClick={() => setTab('week')}><CalendarDays size={19} /><span>Semana</span></button><button className={`nav-item ${tab === 'data' ? 'active' : ''}`} type="button" onClick={() => setTab('data')}><Database size={19} /><span>Dados</span></button></div></nav>{renderPlanModal()}{renderPickerModal()}{renderQuickStartModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{toast && <output className="toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</div>;
+  return <div ref={shellRef} className={'app-shell essential-shell' + (tab === 'today' ? ' essential-home' : '')}>{renderHeader()}{catalogLoading && <div className="app-main" style={{ paddingTop: 0 }}><p style={{ color: 'var(--muted)', fontSize: 11 }}>Sincronizando catálogo…</p></div>}{tab === 'today' && renderToday()}{tab === 'folder' && renderFolder()}{tab === 'week' && renderWeek()}{tab === 'data' && renderData()}{renderPlanModal()}{renderPickerModal()}{renderQuickStartModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{toast && <output className="toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</div>;
 }

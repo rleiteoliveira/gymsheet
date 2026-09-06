@@ -1,9 +1,9 @@
 # Slice 25 — Interface essencial
 
 - Issue: [#30](https://github.com/rleiteoliveira/gymsheet/issues/30) — não é a #1, #6, #7 nem #8.
-- Status: draft
+- Status: doing
 - Cabe no próximo treino? sim — a primeira entrega simplifica a entrada e recolhe a navegação secundária.
-- Direção visual aprovada pelo dono em 06/09/2026. Confirmada no mesmo dia após PoC de quatro variantes: a base de execução é a **Essencial (A)**. A confirmação não promove este plano a `ready`.
+- Direção visual aprovada pelo dono em 06/09/2026. Confirmada no mesmo dia após PoC de quatro variantes: a base de execução é a **Essencial (A)**. O dono autorizou a implementação em 06/09/2026; o executor iniciou o trabalho e marcou o slice como `doing`.
 
 ## Objetivo e referência aprovada
 
@@ -19,11 +19,11 @@ Veredito do dono após o laboratório de 06/09/2026 (ver [docs/design/references
 - Extrema (D) — fora. O vazio sem conteúdo parece abandono. Só revisitar se um slice futuro ocupar esse espaço com histórico e uma transição explícita; não preencher a inicial do 25 “para não ficar vazia”.
 
 - [Comparativo no Figma](https://www.figma.com/design/jKvskdHKH4roQWDPe2RPkJ/GymSheet?node-id=2-2): a reconstrução no nó `3:8` fundamenta a linguagem visual. A data gigante e a barra inferior dessa referência não fazem parte da direção final.
-- Mock final aprovado, arquivo local: `C:/Users/rafao/.codex/generated_images/01a074a1-d025-72e3-b22d-61711d43c646/exec-029a1456-354b-4b65-8694-bd0e3b6e4b16.png`.
-- Menu aprovado, arquivo local: `C:/Users/rafao/.codex/generated_images/01a074a1-d025-72e3-b22d-61711d43c646/exec-1850eb98-0bba-4b0c-9df9-e89136f4147b.png`. Referência de estrutura e comportamento; não reutilizar seu verde nem a densidade da tela de treino ao fundo.
+- [Mock final aprovado da inicial](../design/references/25-essencial-inicial.png).
+- [Mock aprovado da estrutura do menu](../design/references/25-essencial-menu.png). Referência de estrutura e comportamento; não reutilizar seu verde nem a densidade da tela de treino ao fundo.
 - Os mocks usam dados ilustrativos. “Peito” e a data não são valores fixos do produto.
 
-Antes da execução, guardar cópias desses dois mocks em `docs/design/references/` e trocar os caminhos locais por links relativos neste documento. Se os arquivos não estiverem disponíveis, recuperar a referência aprovada; não reconstruí-la a partir de uma opção anterior. Esta preparação faz parte da entrega documental do primeiro slice, sem criar dependência de publicação no Figma.
+Os dois mocks aprovados estão preservados em `docs/design/references/`, sem dependência dos caminhos locais ou de publicação no Figma.
 
 ## Padrão de design v1
 
@@ -99,11 +99,11 @@ Não criar “Conta”, login, avatar ou configurações sem função existente.
 
 ## Faz
 
-- [ ] Registrar as referências portáveis e aplicar o padrão v1 à inicial e ao menu, com estilos restritos a essas superfícies; retirar marca em bloco verde, slogan e indicador rotineiro de catálogo do cabeçalho desse shell.
-- [ ] Substituir a barra inferior e o dock global pelo menu esquerdo com os cinco destinos existentes; início/retomada ficam na tela Treino. Nas telas secundárias, voltar ao treino pelo menu. Não redesenhar a sessão nesta entrega.
-- [ ] Reduzir a inicial a data local, nome/seletor e “Começar” ou “Retomar”, seguindo os estados abaixo; remover repetição de “Hoje”, contagem, progresso, último treino e ações duplicadas dessa tela.
-- [ ] Fazer o nome/seta abrir a seleção pelas Fichas existentes, mantendo o gesto explícito atual de fixar ficha; preservar o início livre, a retomada e a decisão existente sobre sessão anterior. Não criar um segundo picker nem alterar automaticamente uma sessão ao escolher ficha.
-- [ ] Atualizar o E2E para a nova navegação e validar estados, foco, persistência e composição mobile conforme os testes abaixo; manter o restante dos contratos de produto.
+- [x] Registrar as referências portáveis e aplicar o padrão v1 à inicial e ao menu, com estilos restritos a essas superfícies; retirar marca em bloco verde, slogan e indicador rotineiro de catálogo do cabeçalho desse shell.
+- [x] Substituir a barra inferior e o dock global pelo menu esquerdo com os cinco destinos existentes; início/retomada ficam na tela Treino. Nas telas secundárias, voltar ao treino pelo menu. Não redesenhar a sessão nesta entrega.
+- [x] Reduzir a inicial a data local, nome/seletor e “Começar” ou “Retomar”, seguindo os estados abaixo; remover repetição de “Hoje”, contagem, progresso, último treino e ações duplicadas dessa tela.
+- [x] Fazer o nome/seta abrir a seleção pelas Fichas existentes, mantendo o gesto explícito atual de fixar ficha; preservar o início livre, a retomada e a decisão existente sobre sessão anterior. Não criar um segundo picker nem alterar automaticamente uma sessão ao escolher ficha.
+- [x] Atualizar o E2E para a nova navegação e validar estados, foco, persistência e composição mobile conforme os testes abaixo; manter o restante dos contratos de produto.
 
 ### Estados da inicial
 
@@ -226,3 +226,11 @@ Cada PR deve ser reversível sem migração de dados. Em caso de regressão intr
 - Composição final da sessão e localização de ações menos frequentes ainda precisam de desenho; não extrapolar a tela inicial minimalista para esconder ferramentas durante o treino.
 - O atual débito histórico do slice 13, o programa #6 e eventuais problemas anteriores continuam separados. Não declarar prontidão da reconstrução analisada no Figma com base nesta proposta.
 - Indicadores/avisos condicionais e a tela Semana conservam conteúdo atual na primeira entrega; reduzir seu ruído, se necessário, exige um recorte explícito posterior.
+
+## Execução — 06/09/2026
+
+- Inicial e menu implementados na variante Essencial A. Navegação usa o Dialog já instalado; o foco passa ao título após o fechamento completo do painel. Seleção de ficha continua explícita.
+- Tokens restritos às novas superfícies; sessão e persistência mantêm os contratos existentes. Os dois mocks aprovados estão versionados nos links acima.
+- Validação local: 24 testes unitários e 13 cenários E2E; lint, TypeScript, build e verificação do artefato aprovados. E2E verifica IDs, valores de séries e conclusão após recarga, decisões sobre sessão anterior, menu e teclado.
+- Capturas temporárias geradas pelo E2E e revisadas pelo executor; casos de 390 × 844, 320 px, desktop e texto a 200%. Artefatos locais não integram o código de produto.
+- Aceite remoto depende do check `ci` do commit do PR. Este registro não declara merge nem publicação em produção.

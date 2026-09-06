@@ -303,3 +303,45 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }
+/* Slice 25: only shared navigation and the Treino landing surface. */
+.essential-header, .essential-main, .essential-menu {
+  --essential-bg: #11120f;
+  --essential-surface: #191a16;
+  --essential-text: #f2f0e8;
+  --essential-muted: #a4a49a;
+  --essential-line: #30312c;
+  color: var(--essential-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.essential-shell { padding-bottom: env(safe-area-inset-bottom); }
+.essential-home { background: #11120f; }
+.essential-header { display: flex; align-items: center; gap: 12px; width: min(100%, 560px); margin: 0 auto; padding: calc(16px + env(safe-area-inset-top)) 24px 0; }
+.essential-brand { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 1.125rem; font-style: italic; font-weight: 600; }
+.essential-icon-button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 48px; min-height: 48px; border: 0; border-radius: 10px; color: var(--essential-text); background: transparent; cursor: pointer; }
+.essential-header > button { margin-left: -12px; }
+.essential-main { width: min(100%, 560px); margin: 0 auto; padding: clamp(64px, 9vh, 96px) 24px 48px; }
+.essential-date { margin: 0 0 16px; color: var(--essential-muted); font-size: .875rem; line-height: 1.5; }
+.essential-title { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 2rem; font-weight: 400; line-height: 1.25; overflow-wrap: anywhere; }
+.essential-selector { display: inline-flex; align-items: center; gap: 12px; max-width: 100%; min-height: 48px; border: 0; padding: 0; color: inherit; background: transparent; text-align: left; font: inherit; cursor: pointer; }
+.essential-selector span { min-width: 0; }
+.essential-selector svg { flex: 0 0 auto; }
+.essential-start { display: block; width: 100%; min-height: 52px; margin-top: 32px; border: 1px solid var(--essential-text); border-radius: 10px; padding: 12px 16px; color: var(--essential-bg); background: var(--essential-text); font-size: 1rem; font-weight: 600; cursor: pointer; }
+.essential-start:hover { background: #e4e2d9; }
+.essential-warning { margin-top: 24px; }
+.essential-header button:focus-visible, .essential-main button:focus-visible, .essential-menu button:focus-visible, .essential-title:focus-visible { outline: 2px solid var(--essential-text); outline-offset: 4px; }
+.essential-menu-overlay { position: fixed; inset: 0; z-index: 110; background: rgb(0 0 0 / 65%); opacity: 1; transition: opacity 180ms ease; }
+.essential-menu { position: fixed; inset: 0 auto 0 0; z-index: 111; width: min(300px, 85vw); overflow-y: auto; padding: calc(16px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom)); background: var(--essential-surface); transition: transform 180ms ease; }
+.essential-menu-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.essential-menu-links { display: grid; gap: 8px; margin-top: 32px; }
+.essential-menu-link { display: flex; align-items: center; gap: 16px; width: 100%; min-height: 48px; border: 0; border-radius: 0; padding: 12px 0; background: transparent; color: var(--essential-muted); font-size: 1rem; text-align: left; cursor: pointer; }
+.essential-menu-link svg { flex: 0 0 auto; }
+.essential-menu-link[aria-current="page"] { color: var(--essential-text); text-decoration: underline; text-underline-offset: 6px; }
+.essential-menu-link:nth-child(3) { margin-top: 8px; border-top: 1px solid var(--essential-line); padding-top: 24px; }
+.essential-menu-overlay[data-starting-style], .essential-menu-overlay[data-ending-style] { opacity: 0; }
+.essential-menu[data-starting-style], .essential-menu[data-ending-style] { transform: translateX(-100%); }
+@media (prefers-reduced-motion: reduce) {
+  .essential-menu, .essential-menu-overlay { transition: none !important; animation: none !important; }
+}
+
+.essential-menu-heading .essential-icon-button { margin-left: auto; }
