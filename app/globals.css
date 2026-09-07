@@ -852,3 +852,39 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .essential-plan>.essential-secondary {
     margin-top: 12px;
 }
+/* Slice 29: Dados only. */
+.essential-data-block {
+    display: grid;
+    gap: 8px;
+    margin-top: 32px;
+}
+
+.essential-data-block h2 {
+    margin: 0 0 8px;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.essential-data-block .essential-secondary,
+.essential-data-block .essential-quiet {
+    width: 100%;
+}
+
+label.essential-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.essential-data-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 48px;
+    color: var(--essential-text);
+    font-size: 1rem;
+}
+
+.essential-data-block button:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}

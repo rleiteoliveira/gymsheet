@@ -7,15 +7,10 @@ import {
   ChevronDown,
   Database,
   Dumbbell,
-  FileDown,
-  FileJson,
   FolderOpen,
   History,
-  Info,
   Menu,
   Play,
-  RefreshCw,
-  Upload,
   X,
 } from 'lucide-react';
 import { Dialog } from '@base-ui/react/dialog';
@@ -1169,20 +1164,23 @@ export default function Home() {
   function renderData() {
     const lastSync = catalogMeta.savedAt ? formatDateTime(catalogMeta.savedAt) : 'ainda não sincronizado';
     return (
-      <main className="app-main">
-        <section><p className="eyebrow">Dados</p><h1 className="page-title" tabIndex={-1}>Seu histórico é seu</h1><p className="page-lede">Faça uma cópia antes de trocar de aparelho. Nada é enviado para uma conta.</p></section>
-        <section className="surface data-card" style={{ marginTop: 22 }}>
-          <div className="data-row"><div><strong>Catálogo de exercícios</strong><p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 11 }}>{catalogLoading ? 'sincronizando…' : sourceLabel(catalogMeta.source)}</p></div><button className="btn btn-secondary btn-small" type="button" onClick={() => void refreshCatalog()} disabled={catalogLoading}><RefreshCw size={14} className={catalogLoading ? 'spin' : undefined} /> Atualizar</button></div>
-          <div className="data-row"><strong>Última cópia do catálogo</strong><span>{lastSync}</span></div>
-          <div className="data-row"><strong>Fonte</strong><a className="source-link" href="https://github.com/yuhonas/free-exercise-db" target="_blank" rel="noreferrer">Free Exercise DB ↗</a></div>
+      <main className="essential-page">
+        <h1 className="essential-page-title" tabIndex={-1}>Dados</h1>
+        <section className="essential-data-block">
+          <h2>Cópia</h2>
+          <button className="essential-primary" type="button" onClick={() => { downloadFile(`gymsheet-backup-${localDateKey(new Date())}.json`, JSON.stringify(createBackup(state), null, 2), 'application/json;charset=utf-8'); notify('Backup JSON baixado.'); }}>Baixar JSON</button>
+          <button className="essential-secondary" type="button" onClick={() => { downloadFile(`gymsheet-${localDateKey(new Date())}.csv`, buildCsv(state.sessions), 'text/csv;charset=utf-8'); notify('CSV baixado.'); }}>Baixar CSV</button>
+          <label className="essential-secondary" htmlFor="restore-file">Restaurar JSON</label>
+          <input id="restore-file" className="hidden-input" type="file" accept="application/json,.json" onChange={(event) => void handleRestore(event)} />
+          <p className="essential-exercise-note">Restaurar substitui os dados deste aparelho.</p>
+          <button className="essential-quiet" type="button" onClick={() => void handleLoadDemo()}>Carregar exemplo</button>
         </section>
-        <section className="surface data-card" style={{ marginTop: 11 }}>
-          <div className="data-row"><div><strong>CSV de séries</strong><p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 11 }}>Uma linha por série, com status</p></div><button className="btn btn-primary btn-small" type="button" onClick={() => { downloadFile(`gymsheet-${localDateKey(new Date())}.csv`, buildCsv(state.sessions), 'text/csv;charset=utf-8'); notify('CSV baixado.'); }}><FileDown size={15} /> Baixar CSV</button></div>
-          <div className="data-row"><div><strong>Backup completo</strong><p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 11 }}>Fichas, sessões e pin atual</p></div><button className="btn btn-secondary btn-small" type="button" onClick={() => { downloadFile(`gymsheet-backup-${localDateKey(new Date())}.json`, JSON.stringify(createBackup(state), null, 2), 'application/json;charset=utf-8'); notify('Backup JSON baixado.'); }}><FileJson size={15} /> Baixar JSON</button></div>
-          <div className="data-row"><div><strong>Restaurar backup</strong><p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 11 }}>Valida antes de substituir seus dados</p></div><label className="btn btn-secondary btn-small" htmlFor="restore-file"><Upload size={15} /> Escolher JSON</label><input id="restore-file" className="hidden-input" type="file" accept="application/json,.json" onChange={(event) => void handleRestore(event)} /></div>
-          <div className="data-row"><div><strong>Diário de exemplo</strong><p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 11 }}>Carrega fichas e sessões para explorar o app</p></div><button className="btn btn-secondary btn-small" type="button" onClick={() => void handleLoadDemo()}><Dumbbell size={15} /> Carregar diário de exemplo</button></div>
+        <section className="essential-data-block">
+          <h2>Catálogo de exercícios</h2>
+          <p className="essential-exercise-note">{catalogLoading ? 'sincronizando…' : sourceLabel(catalogMeta.source)} · {lastSync}</p>
+          <button className="essential-secondary" type="button" onClick={() => void refreshCatalog()} disabled={catalogLoading}>Atualizar</button>
+          <a className="essential-data-link" href="https://github.com/yuhonas/free-exercise-db" target="_blank" rel="noreferrer">Free Exercise DB</a>
         </section>
-        <div className="warning" style={{ marginTop: 17 }}><Info size={16} /><div><strong>Importante:</strong> publicar o app não publica seus treinos. Para levar seus dados a outro aparelho, restaure este JSON.</div></div>
       </main>
     );
   }
@@ -1470,6 +1468,6 @@ export default function Home() {
 
   if (sessionViewId) return <>{renderSession()}{renderPlanModal()}{renderPickerModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{toast && <output className="toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</>;
 
-  const essentialSurface = tab === 'today' || tab === 'folder' || tab === 'week';
+  const essentialSurface = tab === 'today' || tab === 'folder' || tab === 'week' || tab === 'data';
   return <div ref={shellRef} className={'app-shell essential-shell' + (essentialSurface ? ' essential-home' : '')}>{renderHeader()}{catalogLoading && !essentialSurface && <div className="app-main" style={{ paddingTop: 0 }}><p style={{ color: 'var(--muted)', fontSize: 11 }}>Sincronizando catálogo…</p></div>}{tab === 'today' && renderToday()}{tab === 'folder' && renderFolder()}{tab === 'week' && renderWeek()}{tab === 'data' && renderData()}{renderPlanModal()}{renderPickerModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{toast && <output className="toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</div>;
 }

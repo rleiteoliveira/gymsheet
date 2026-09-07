@@ -204,7 +204,7 @@ test('menu oferece cinco destinos, contém foco e fecha por teclado e clique ext
   await expect(trigger).toBeFocused();
   for (const [destination, title] of [
     ['Fichas', 'Fichas'], ['Histórico', 'Histórico'],
-    ['Calendário', 'Calendário'], ['Dados e backup', 'Seu histórico é seu'], ['Treino', 'Peito'],
+    ['Calendário', 'Calendário'], ['Dados e backup', 'Dados'], ['Treino', 'Peito'],
   ]) {
     await goTo(page, destination);
     await expect(page.locator('main h1')).toContainText(title);
@@ -371,12 +371,16 @@ test('nome longo, texto a 200%, contraste, alvos e menu em 320px e desktop', asy
   await expect(page.getByRole('button', { name: 'Abrir menu', exact: true })).toBeFocused();
 });
 
-test('catálogo indisponível mantém aviso e status acessível em Dados', async ({ page }) => {
+test('catálogo indisponível mantém aviso e status acessível em Dados', async ({ page }, info) => {
   await openApp(page, undefined, true);
   await expect(page.getByText('Catálogo offline.', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Tentar', exact: true })).toBeVisible();
   await goTo(page, 'Dados e backup');
-  await expect(page.getByText('Catálogo de exercícios', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Dados', exact: true })).toBeVisible();
+  await expect(page.getByText('Seu histórico é seu')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Catálogo de exercícios', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Baixar JSON', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Baixar CSV', exact: true })).toBeVisible();
+  await expect(page.getByText('Restaurar substitui os dados deste aparelho.', { exact: true })).toBeVisible();
+  await capture(page, info, 'essencial-dados');
 });
