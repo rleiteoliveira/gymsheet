@@ -4,7 +4,6 @@ import {
   Activity,
   AlertTriangle,
   ArrowDown,
-  ArrowLeft,
   ArrowUp,
   CalendarDays,
   Check,
@@ -71,7 +70,7 @@ import { STATUS_HINTS, STATUS_LABELS } from '@/lib/types';
 type Tab = 'today' | 'folder' | 'week' | 'data';
 type FolderTab = 'plans' | 'sessions';
 type PickerMode = 'plan' | 'swap' | 'add';
-type Modal = 'plan' | 'picker' | 'quick-start' | null;
+type Modal = 'plan' | 'picker' | null;
 
 interface PlanDraft {
   id?: string;
@@ -90,7 +89,6 @@ interface PendingSessionStart {
   previousSessionId: string;
   planId: string | null;
   quickStartName?: string;
-  quickStartMuscleGroups?: string[];
 }
 
 const EMPTY_STATE: AppState = { plans: [], sessions: [], todayPin: null };
@@ -148,15 +146,6 @@ function formatDateTime(input: string) {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(input));
-}
-
-function formatSessionDuration(startedAt: string, now: Date) {
-  const elapsedSeconds = Math.max(0, Math.floor((now.getTime() - new Date(startedAt).getTime()) / 1000));
-  const hours = Math.floor(elapsedSeconds / 3600);
-  const minutes = Math.floor((elapsedSeconds % 3600) / 60);
-  const seconds = elapsedSeconds % 60;
-  if (hours > 0) return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
 function formatDateKeyLabel(dateKey: string, options: Intl.DateTimeFormatOptions = {}) {
@@ -385,7 +374,6 @@ export default function Home() {
   const [pickerSearch, setPickerSearch] = useState('');
   const [pickerMuscleGroups, setPickerMuscleGroups] = useState<string[]>([]);
   const [pickerSessionExerciseId, setPickerSessionExerciseId] = useState<string | null>(null);
-  const [quickStartName, setQuickStartName] = useState('');
   const [draft, setDraft] = useState<PlanDraft | null>(null);
   const [pendingSessionStart, setPendingSessionStart] = useState<PendingSessionStart | null>(null);
   const [calendarCursor, setCalendarCursor] = useState(() => monthStart(new Date()));
@@ -393,7 +381,6 @@ export default function Home() {
   const [retroactiveDateKey, setRetroactiveDateKey] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [updateReady, setUpdateReady] = useState(false);
-  const [sessionClockNow, setSessionClockNow] = useState(() => new Date());
   const serviceWorkerRegistrationRef = useRef<ServiceWorkerRegistration | null>(null);
   const reloadAfterServiceWorkerUpdateRef = useRef(false);
 
@@ -406,7 +393,6 @@ export default function Home() {
     setPendingSessionStart(null);
     setModal(null);
     setDraft(null);
-    setQuickStartName('');
   }
 
   const mutate = useCallback((updater: (current: AppState) => AppState) => {
@@ -528,14 +514,6 @@ export default function Home() {
   const pinnedPlan = state.todayPin?.kind === 'plan' ? state.plans.find((plan) => plan.id === state.todayPin?.id) : undefined;
   const activeSession = sessionViewId ? state.sessions.find((session) => session.id === sessionViewId) : undefined;
 
-  useEffect(() => {
-    if (!sessionViewId || activeSession?.state !== 'in_progress') return undefined;
-    const updateClock = () => setSessionClockNow(new Date());
-    updateClock();
-    const timer = window.setInterval(updateClock, 1000);
-    return () => window.clearInterval(timer);
-  }, [activeSession?.state, sessionViewId]);
-
   const todayKey = localDateKey(new Date());
   const today = useMemo(() => parseLocalDateKey(todayKey), [todayKey]);
   const todayInProgressSession = useMemo(
@@ -566,58 +544,54 @@ export default function Home() {
     setModal('picker');
   }
 
-  function openQuickStart() {
-    setQuickStartName(suggestedSessionName());
-    setPickerMode('add');
-    setPickerSessionExerciseId(null);
-    setPickerSearch('');
-    setPickerMuscleGroups([]);
-    setModal('quick-start');
+  function enterSession(session: Session) {
+    setSessionViewId(session.id);
+    if (session.state !== 'in_progress') {
+      setActiveExerciseId(null);
+      setComposerKg('');
+      setComposerReps('');
+      return;
+    }
+    const target = session.exercises.find((exercise) => exercise.status === null) ?? session.exercises[0];
+    if (target) selectExerciseForRegister(target);
+    else {
+      setActiveExerciseId(null);
+      setComposerKg('');
+      setComposerReps('');
+    }
   }
 
-  function startQuickSession(name: string) {
+  function startQuickSession() {
     const now = new Date();
     const decision = decideSessionStart(state.sessions, now);
     if (decision.kind === 'resume-today') {
       setModal(null);
-      setQuickStartName('');
-      openSession(decision.session.id);
+      enterSession(decision.session);
       return;
     }
     if (decision.kind === 'choose-previous') {
       setPendingSessionStart({
         previousSessionId: decision.session.id,
         planId: null,
-        quickStartName: name,
-        quickStartMuscleGroups: [...pickerMuscleGroups],
+        quickStartName: suggestedSessionName(now),
       });
       setModal(null);
-      setQuickStartName('');
       return;
     }
 
-    const session = createQuickSession(name, now, makeId);
+    const session = createQuickSession(suggestedSessionName(now), now, makeId);
     mutate((current) => ({
       ...current,
       sessions: [...current.sessions, session],
       todayPin: { kind: 'session', id: session.id },
     }));
-    setQuickStartName('');
-    setSessionViewId(session.id);
-    setActiveExerciseId(null);
-    setComposerKg('');
-    setComposerReps('');
+    enterSession(session);
+    setPickerMode('add');
+    setPickerSessionExerciseId(null);
+    setPickerSearch('');
+    setPickerMuscleGroups([]);
     setModal('picker');
     notify('Treino começou. Escolha um exercício.');
-  }
-
-  function confirmQuickStart() {
-    const name = quickStartName.trim();
-    if (!name) {
-      notify('Dê um nome para o treino.');
-      return;
-    }
-    startQuickSession(name);
   }
 
   function openQuickExercisePicker() {
@@ -656,10 +630,8 @@ export default function Home() {
   }
 
   function openSession(sessionId: string) {
-    setSessionViewId(sessionId);
-    setActiveExerciseId(null);
-    setComposerKg('');
-    setComposerReps('');
+    const session = state.sessions.find((item) => item.id === sessionId);
+    if (session) enterSession(session);
   }
 
   function selectCalendarDate(day: { date: Date; dateKey: string; inCurrentMonth: boolean; isFuture: boolean }) {
@@ -698,8 +670,7 @@ export default function Home() {
     const selectedPlan = plan ?? pinnedPlan;
     const decision = decideSessionStart(state.sessions, new Date());
     if (decision.kind === 'resume-today') {
-      setSessionViewId(decision.session.id);
-      setActiveExerciseId(null);
+      enterSession(decision.session);
       return;
     }
     if (decision.kind === 'choose-previous') {
@@ -715,8 +686,7 @@ export default function Home() {
       sessions: [...current.sessions, session],
       todayPin: { kind: 'session', id: session.id },
     }));
-    setSessionViewId(session.id);
-    setActiveExerciseId(null);
+    enterSession(session);
     notify(selectedPlan ? `Sessão ${selectedPlan.name} começou.` : 'Sessão vazia começou.');
   }
 
@@ -724,10 +694,7 @@ export default function Home() {
     if (!pendingSessionStart) return;
     const previous = state.sessions.find((session) => session.id === pendingSessionStart.previousSessionId);
     setPendingSessionStart(null);
-    if (previous) {
-      setSessionViewId(previous.id);
-      setActiveExerciseId(null);
-    }
+    if (previous) enterSession(previous);
   }
 
   function completePreviousAndStartToday() {
@@ -752,13 +719,12 @@ export default function Home() {
       todayPin: { kind: 'session', id: nextSession.id },
     }));
     setPendingSessionStart(null);
-    setSessionViewId(nextSession.id);
-    setActiveExerciseId(null);
+    enterSession(nextSession);
     if (quickStartName) {
       setPickerMode('add');
       setPickerSessionExerciseId(null);
       setPickerSearch('');
-      setPickerMuscleGroups(pendingSessionStart.quickStartMuscleGroups ?? []);
+      setPickerMuscleGroups([]);
       setModal('picker');
     }
     notify(quickStartName ? `Sessão ${quickStartName} começou hoje.` : selectedPlan ? `Sessão ${selectedPlan.name} começou hoje.` : 'Sessão vazia começou hoje.');
@@ -798,31 +764,35 @@ export default function Home() {
         return applySessionEdit(session, { type: 'save-set', exerciseId: activeExerciseId, set });
       }),
     }));
-    setActiveExerciseId(null);
     notifySessionChange(activeSession, 'Série salva.');
   }
 
   function markSkipped(exerciseId: string) {
     const target = state.sessions.find((session) => session.id === sessionViewId);
+    const skipped = target ? applySessionEdit(target, { type: 'skip', exerciseId }) : undefined;
     mutate((current) => ({
       ...current,
       sessions: current.sessions.map((session) =>
         session.id !== sessionViewId ? session : applySessionEdit(session, { type: 'skip', exerciseId }),
       ),
     }));
-    if (activeExerciseId === exerciseId) setActiveExerciseId(null);
+    const next = skipped?.exercises.find((exercise) => exercise.status === null);
+    if (next) selectExerciseForRegister(next);
+    else if (skipped) enterSession(skipped);
     if (target) notifySessionChange(target, 'Exercício marcado como pulado.');
   }
 
   function undoExercise(exerciseId: string) {
     const target = state.sessions.find((session) => session.id === sessionViewId);
+    const undone = target ? applySessionEdit(target, { type: 'undo', exerciseId }) : undefined;
     mutate((current) => ({
       ...current,
       sessions: current.sessions.map((session) =>
         session.id !== sessionViewId ? session : applySessionEdit(session, { type: 'undo', exerciseId }),
       ),
     }));
-    if (activeExerciseId === exerciseId) setActiveExerciseId(null);
+    const restored = undone?.exercises.find((exercise) => exercise.id === exerciseId);
+    if (restored) selectExerciseForRegister(restored);
     if (target) notifySessionChange(target, 'Status desfeito.');
   }
 
@@ -934,10 +904,10 @@ export default function Home() {
           session.id !== sessionViewId
             ? session
             : applySessionEdit(session, {
-                type: 'swap',
-                exerciseId: pickerSessionExerciseId,
-                performed: toSnapshot(exercise),
-              }),
+              type: 'swap',
+              exerciseId: pickerSessionExerciseId,
+              performed: toSnapshot(exercise),
+            }),
         ),
       }));
       setActiveExerciseId(pickerSessionExerciseId);
@@ -1144,7 +1114,7 @@ export default function Home() {
             onClick={() => {
               if (todayInProgressSession) startSession();
               else if (pinnedPlan) startSession(pinnedPlan);
-              else openQuickStart();
+              else startQuickSession();
             }}
           >
             {todayInProgressSession ? 'Retomar' : 'Começar'}
@@ -1163,7 +1133,7 @@ export default function Home() {
         {folderTab === 'plans' ? (
           state.plans.length ? <div className="list">{state.plans.map((plan) => <div className="list-card" key={plan.id}><div className="list-card-main"><h3>{plan.emoji ? `${plan.emoji} ` : ''}{plan.name}</h3><p>{plan.exercises.length} exercícios · {state.todayPin?.kind === 'plan' && state.todayPin.id === plan.id ? 'pinada hoje' : `atualizada ${formatDate(plan.updatedAt)}`}</p></div><div className="list-card-actions"><button className="btn btn-secondary btn-small" type="button" onClick={() => openPlanEditor(plan)} aria-label={`Editar ${plan.name}`}>Editar</button>{state.todayPin?.kind === 'plan' && state.todayPin.id === plan.id ? <button className="btn btn-quiet btn-small" type="button" onClick={clearPin}><PinOff size={14} /></button> : <button className="btn btn-secondary btn-small" type="button" onClick={() => pinPlan(plan.id)} aria-label={`Fixar ${plan.name}`}><Pin size={14} /></button>}<button className="btn btn-danger btn-small" type="button" onClick={() => deletePlan(plan.id)} aria-label={`Excluir ${plan.name}`}><Trash2 size={14} /></button></div></div>)}</div> : <div className="surface empty"><div className="empty-icon"><FolderOpen size={24} /></div><h2>A pasta está vazia</h2><p>Crie uma ficha com seus exercícios e alvos de séries.</p><button className="btn btn-primary" type="button" onClick={() => openPlanEditor()}><Plus size={18} /> Criar primeira ficha</button></div>
         ) : (
-          state.sessions.length ? <div className="list">{[...state.sessions].sort((a, b) => b.startedAt.localeCompare(a.startedAt)).map((session) => <div className="list-card" key={session.id}><div className="list-card-main"><h3>{session.sourcePlanName ?? 'Sessão vazia'} {session.state === 'in_progress' && <span className="status-chip added">Em andamento</span>}</h3><p>{formatDateTime(session.startedAt)} · {session.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0)} séries</p></div>{session.state === 'in_progress' ? <button className="btn btn-primary btn-small" type="button" onClick={() => setSessionViewId(session.id)}><Play size={14} /> Retomar</button> : <CircleCheck size={20} color="var(--lime)" />}</div>)}</div> : <div className="surface empty"><div className="empty-icon"><History size={24} /></div><h2>Nenhuma sessão ainda</h2><p>Quando você registrar sua primeira série, ela aparece aqui.</p><button className="btn btn-primary" type="button" onClick={() => startSession()}><Play size={18} /> Começar sessão vazia</button></div>
+          state.sessions.length ? <div className="list">{[...state.sessions].sort((a, b) => b.startedAt.localeCompare(a.startedAt)).map((session) => <div className="list-card" key={session.id}><div className="list-card-main"><h3>{session.sourcePlanName ?? 'Sessão vazia'} {session.state === 'in_progress' && <span className="status-chip added">Em andamento</span>}</h3><p>{formatDateTime(session.startedAt)} · {session.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0)} séries</p></div>{session.state === 'in_progress' ? <button className="btn btn-primary btn-small" type="button" onClick={() => openSession(session.id)}><Play size={14} /> Retomar</button> : <CircleCheck size={20} color="var(--lime)" />}</div>)}</div> : <div className="surface empty"><div className="empty-icon"><History size={24} /></div><h2>Nenhuma sessão ainda</h2><p>Quando você registrar sua primeira série, ela aparece aqui.</p><button className="btn btn-primary" type="button" onClick={() => startSession()}><Play size={18} /> Começar sessão vazia</button></div>
         )}
       </main>
     );
@@ -1244,25 +1214,137 @@ export default function Home() {
 
   function renderSession() {
     if (!activeSession) return null;
-    const resolved = activeSession.exercises.filter((exercise) => exercise.status !== null).length;
-    const total = activeSession.exercises.length;
     const currentExercise = activeSession.exercises.find((exercise) => exercise.id === activeExerciseId);
-    const progress = total ? Math.round((resolved / total) * 100) : 0;
     const isQuickSession = activeSession.sourcePlanId === null;
+    const inProgress = activeSession.state === 'in_progress';
+    const composing = Boolean(currentExercise && currentExercise.status !== 'skipped');
+    const openAdd = isQuickSession ? openQuickExercisePicker : () => openPicker('add');
+    const leaveSession = () => {
+      setSessionViewId(null);
+      setActiveExerciseId(null);
+    };
+
     return (
-      <div className="session-shell">
-        <main className="session-main">
-          <div className="session-header"><div><button className="btn btn-quiet btn-small" type="button" onClick={() => { setSessionViewId(null); setActiveExerciseId(null); }}><ArrowLeft size={16} /> Voltar</button><p className="eyebrow" style={{ marginTop: 17 }}>{activeSession.state === 'completed' ? 'Sessão concluída · edição' : 'Sessão em andamento'}</p><h1>{activeSession.sourcePlanName ?? 'Sessão vazia'}</h1><p>Começou {formatDateTime(activeSession.startedAt)}</p></div><div className="session-header-actions">{activeSession.state === 'in_progress' && <div className="session-clock" aria-label={`Tempo de sessão ${formatSessionDuration(activeSession.startedAt, sessionClockNow)}`}><span>Tempo</span><strong>{formatSessionDuration(activeSession.startedAt, sessionClockNow)}</strong></div>}{activeSession.state === 'in_progress' && <button className="btn btn-danger btn-small" type="button" onClick={() => discardSession()}><Trash2 size={14} /> Descartar</button>}</div></div>
-          <div className="progress-track" aria-label={`${resolved} de ${total || 0} exercícios resolvidos`}><span style={{ width: `${progress}%` }} /></div><div className="session-progress-copy"><span>{resolved} de {total || 0} resolvidos</span><span>{activeSession.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0)} séries</span></div>
-          <div className="section-heading"><h2>Exercícios</h2><button className="btn btn-secondary btn-small" type="button" onClick={isQuickSession ? openQuickExercisePicker : () => openPicker('add')}><Plus size={15} /> {isQuickSession ? 'Próximo exercício' : 'Adicionar'}</button></div>
-          {activeSession.exercises.length ? <div className="exercise-list">{activeSession.exercises.map((exercise) => {
-            const display = exercise.performed ?? exercise.planned?.exercise;
-            const plannedName = exercise.planned?.exercise.name;
-            const isActive = activeExerciseId === exercise.id;
-            return <article className={`exercise-card ${isActive ? 'active' : ''}`} key={exercise.id}><div className="exercise-top"><span className="exercise-index">{exercise.order + 1}</span><div className="exercise-copy"><h3>{display?.name ?? 'Exercício pendente'}</h3><p>{display ? `${localizeMuscle(display.primaryMuscles[0])} · ${localizeEquipment(display.equipment)}` : 'Escolha uma ação para registrar o que aconteceu.'}</p>{exercise.status && <div style={{ marginTop: 8 }}><StatusChip status={exercise.status} /></div>}</div><ExerciseImage src={display?.images[0]} alt={display?.name ?? 'exercício'} /></div>{exercise.status === 'swapped' && plannedName && <p className="swap-note">Planejado: {plannedName}</p>}{exercise.sets.length > 0 && <div className="set-list">{exercise.sets.map((set) => <div className="set-row" key={set.id}><span>Série {set.index}</span><strong>{formatKg(set.kg)} · {set.reps} reps</strong></div>)}</div>}{exercise.status === null ? <div className="exercise-controls"><button className="btn btn-primary" type="button" onClick={() => selectExerciseForRegister(exercise)}><Save size={15} /> Registrar</button>{exercise.planned && <button className="btn btn-secondary" type="button" onClick={() => markSkipped(exercise.id)}><SkipForward size={15} /> Pular</button>}{exercise.planned && <button className="btn btn-secondary" type="button" onClick={() => openPicker('swap', exercise.id)}><RotateCcw size={15} /> Trocar</button>}</div> : exercise.status === 'skipped' ? <div className="exercise-controls"><button className="btn btn-quiet" type="button" onClick={() => undoExercise(exercise.id)}><RotateCcw size={15} /> Desfazer status</button></div> : <div className="exercise-controls"><button className="btn btn-secondary" type="button" onClick={() => selectExerciseForRegister(exercise)}><Plus size={15} /> Nova série</button><button className="btn btn-quiet" type="button" onClick={() => undoExercise(exercise.id)}><RotateCcw size={15} /> Desfazer status</button></div>}</article>;
-          })}</div> : <div className="surface empty"><div className="empty-icon"><ListPlus size={24} /></div><h2>Sessão livre</h2><p>Adicione seu primeiro exercício para começar a registrar.</p><button className="btn btn-primary" type="button" onClick={isQuickSession ? openQuickExercisePicker : () => openPicker('add')}><Plus size={18} /> {isQuickSession ? 'Próximo exercício' : 'Adicionar exercício'}</button></div>}
+      <div className="essential-session">
+        <main className="essential-session-main">
+          <header className="essential-session-header">
+            <button className="essential-session-quiet" type="button" onClick={leaveSession}>Voltar</button>
+            <h1 tabIndex={-1}>{activeSession.sourcePlanName ?? 'Sessão vazia'}</h1>
+          </header>
+
+          {activeSession.exercises.length === 0 ? (
+            <div className="essential-session-empty">
+              <button className="essential-session-primary" type="button" onClick={openAdd}>Adicionar exercício</button>
+            </div>
+          ) : (
+            <ul className="essential-session-list">
+              {activeSession.exercises.map((exercise) => {
+                const display = exercise.performed ?? exercise.planned?.exercise;
+                const plannedName = exercise.planned?.exercise.name;
+                const isActive = activeExerciseId === exercise.id;
+                return (
+                  <li key={exercise.id}>
+                    <article className={isActive ? 'essential-exercise active' : 'essential-exercise'}>
+                      <button className="essential-exercise-select" type="button" onClick={() => selectExerciseForRegister(exercise)}>
+                        <span className="essential-exercise-index">{exercise.order + 1}</span>
+                        <span className="essential-exercise-name">{display?.name ?? 'Exercício pendente'}</span>
+                      </button>
+                      {exercise.status === 'swapped' && plannedName && plannedName !== display?.name && (
+                        <p className="essential-exercise-note">Planejado: {plannedName}</p>
+                      )}
+                      {exercise.sets.length > 0 && (
+                        <ul className="essential-set-list">
+                          {exercise.sets.map((set) => (
+                            <li className="essential-set-row" key={set.id}>
+                              <span>Série {set.index}</span>
+                              <strong>{formatKg(set.kg)} · {set.reps} reps</strong>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {isActive && (
+                        <>
+                          {exercise.status !== 'skipped' && (
+                            <div className="essential-composer">
+                              <p className="essential-composer-label">Série {exercise.sets.length + 1}</p>
+                              <div className="essential-composer-row">
+                                <label className="essential-input-wrap">
+                                  <input
+                                    id="composer-kg"
+                                    className="essential-input"
+                                    inputMode="decimal"
+                                    type="text"
+                                    placeholder={isQuickSession ? 'opcional' : '0'}
+                                    value={composerKg}
+                                    onChange={(event) => setComposerKg(event.target.value)}
+                                    onFocus={(event) => event.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+                                    aria-label="Peso em quilogramas"
+                                  />
+                                  <span>kg</span>
+                                </label>
+                                <label className="essential-input-wrap">
+                                  <input
+                                    id="composer-reps"
+                                    className="essential-input"
+                                    inputMode="numeric"
+                                    type="number"
+                                    min={isQuickSession ? 0 : 1}
+                                    max={999}
+                                    placeholder={isQuickSession ? 'opcional' : '10'}
+                                    value={composerReps}
+                                    onChange={(event) => setComposerReps(event.target.value)}
+                                    onKeyDown={(event) => { if (event.key === 'Enter') saveSet(); }}
+                                    onFocus={(event) => event.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+                                    aria-label="Repetições"
+                                  />
+                                  <span>reps</span>
+                                </label>
+                              </div>
+                              <button className="essential-session-primary" type="button" data-testid="quick-set-done" onClick={saveSet}>Salvar série</button>
+                            </div>
+                          )}
+                          <div className="essential-exercise-actions">
+                            {exercise.status === null && exercise.planned && (
+                              <>
+                                <button className="essential-session-secondary" type="button" onClick={() => markSkipped(exercise.id)}>Pular</button>
+                                <button className="essential-session-secondary" type="button" onClick={() => openPicker('swap', exercise.id)}>Trocar</button>
+                              </>
+                            )}
+                            {inProgress && (
+                              <button className="essential-session-secondary" type="button" onClick={openAdd}>Adicionar</button>
+                            )}
+                            {exercise.status !== null && (
+                              <button className="essential-session-quiet" type="button" onClick={() => undoExercise(exercise.id)}>Desfazer</button>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </article>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {inProgress ? (
+            <div className="essential-session-footer">
+              <button
+                className={composing || activeSession.exercises.length === 0 ? 'essential-session-secondary' : 'essential-session-primary'}
+                type="button"
+                data-testid="finish-workout"
+                onClick={finishSession}
+              >
+                Finalizar
+              </button>
+              <button className="essential-session-quiet" type="button" onClick={() => discardSession()}>Descartar</button>
+            </div>
+          ) : (
+            <div className="essential-session-footer">
+              <p className="essential-exercise-note">Correção do registro deste dia.</p>
+              <button className="essential-session-secondary" type="button" onClick={leaveSession}>Voltar ao calendário</button>
+            </div>
+          )}
         </main>
-        <div className="session-bottom"><div className="session-bottom-inner">{currentExercise ? <div className="composer"><div className="composer-label"><span>Registrando série {currentExercise.sets.length + 1}</span><strong>{currentExercise.performed?.name ?? currentExercise.planned?.exercise.name}</strong></div><div className="input-row"><div className="input-wrap"><input id="composer-kg" className="numeric-input" inputMode="decimal" type="text" placeholder={isQuickSession ? 'opcional' : '0'} value={composerKg} onChange={(event) => setComposerKg(event.target.value)} onFocus={(event) => event.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })} aria-label="Peso em quilogramas" /><span>kg</span></div><div className="input-wrap"><input id="composer-reps" className="numeric-input" inputMode="numeric" type="number" min={isQuickSession ? 0 : 1} max="999" placeholder={isQuickSession ? 'opcional' : '10'} value={composerReps} onChange={(event) => setComposerReps(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') saveSet(); }} onFocus={(event) => event.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })} aria-label="Repetições" /><span>reps</span></div><button className="btn btn-primary" type="button" data-testid={isQuickSession ? 'quick-set-done' : undefined} onClick={saveSet}><Check size={17} strokeWidth={3} /> {isQuickSession ? 'Série feita' : 'Salvar série'}</button></div></div> : activeSession.state === 'completed' ? <div className="finish-row"><span className="session-edit-note">Você está corrigindo o registro existente.</span><button className="btn btn-secondary btn-small" type="button" onClick={() => { setSessionViewId(null); setActiveExerciseId(null); }}>Voltar ao calendário</button></div> : <div className="finish-row">{isQuickSession && <button className="btn btn-secondary" type="button" onClick={openQuickExercisePicker}><Plus size={17} /> Próximo exercício</button>}<button className="btn btn-primary" type="button" data-testid={isQuickSession ? 'finish-workout' : undefined} onClick={finishSession}><CircleCheck size={17} /> {isQuickSession ? 'Finalizar treino' : 'Finalizar sessão'}</button></div>}</div></div>
       </div>
     );
   }
@@ -1311,41 +1393,6 @@ export default function Home() {
     );
   }
 
-  function renderQuickStartModal() {
-    if (modal !== 'quick-start') return null;
-    return (
-      <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setModal(null); setQuickStartName(''); } }}>
-        <dialog open className="modal" aria-modal="true" aria-labelledby="quick-start-modal-title">
-          <div className="modal-head">
-            <div>
-              <h2 id="quick-start-modal-title">Começar treino</h2>
-              <p>Dê um nome ao treino e escolha os grupamentos que quer ver primeiro.</p>
-            </div>
-            <button className="btn btn-quiet btn-icon" type="button" onClick={() => { setModal(null); setQuickStartName(''); }} aria-label="Fechar"><X size={20} /></button>
-          </div>
-          <div className="editor">
-            <div className="form-field">
-              <label htmlFor="quick-session-name">Nome do treino</label>
-              <input autoFocus id="quick-session-name" className="text-input" type="text" value={quickStartName} onChange={(event) => setQuickStartName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') confirmQuickStart(); }} />
-              <span className="field-hint">O nome sugerido usa o dia civil local e pode ser editado.</span>
-            </div>
-            <div className="picker-filter">
-              <div className="picker-filter-head"><span>Grupamentos (opcional)</span>{pickerMuscleGroups.length > 0 && <button className="btn btn-quiet btn-small" type="button" onClick={() => setPickerMuscleGroups([])}>Limpar</button>}</div>
-              <fieldset className="muscle-chips" aria-label="Grupamentos musculares">
-                <button className={`muscle-chip ${pickerMuscleGroups.length === 0 ? 'active' : ''}`} type="button" aria-pressed={pickerMuscleGroups.length === 0} onClick={() => setPickerMuscleGroups([])}>Todos</button>
-                {pickerMuscleOptions.map((group) => <button className={`muscle-chip ${pickerMuscleGroups.includes(group.id) ? 'active' : ''}`} type="button" key={group.id} aria-pressed={pickerMuscleGroups.includes(group.id)} onClick={() => togglePickerMuscle(group.id)}>{group.label}</button>)}
-              </fieldset>
-            </div>
-            <div className="button-stack">
-              <button className="btn btn-primary btn-block" type="button" onClick={confirmQuickStart}><Play size={17} fill="currentColor" /> Começar treino</button>
-              <button className="btn btn-quiet btn-block" type="button" onClick={() => { setModal(null); setQuickStartName(''); }}>Agora não</button>
-            </div>
-          </div>
-        </dialog>
-      </div>
-    );
-  }
-
   function renderPlanModal() {
     if (modal !== 'plan' || !draft) return null;
     return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setModal(null); setDraft(null); } }}><dialog open className="modal" aria-modal="true" aria-labelledby="plan-modal-title"><div className="modal-head"><div><h2 id="plan-modal-title">{draft.id ? 'Editar ficha' : 'Nova ficha'}</h2><p>Defina o alvo. O que acontecer fica na sessão.</p></div><button className="btn btn-quiet btn-icon" type="button" onClick={() => { setModal(null); setDraft(null); }} aria-label="Fechar"><X size={20} /></button></div><div className="editor"><div className="form-field"><label htmlFor="plan-name">Nome da ficha</label><input id="plan-name" className="text-input" type="text" placeholder="Ex.: Pernas + core" value={draft.name} onChange={(event) => setDraft((current) => current ? { ...current, name: event.target.value } : current)} /></div><div className="form-field"><label htmlFor="plan-emoji">Emoji (opcional)</label><input id="plan-emoji" className="text-input emoji-input" type="text" maxLength={8} placeholder="Ex.: 🦵" value={draft.emoji} onChange={(event) => setDraft((current) => current ? { ...current, emoji: event.target.value } : current)} /><span className="field-hint">Use um único emoji para reconhecer a ficha de relance.</span></div><div className="section-heading" style={{ margin: '5px 0 0' }}><h2>Exercícios</h2><button className="btn btn-secondary btn-small" type="button" onClick={() => openPicker('plan')}><Plus size={15} /> Adicionar</button></div>{draft.exercises.length ? <div className="list">{draft.exercises.map((exercise, index) => <div className="editor-exercise" key={exercise.id}><span>{index + 1}</span><div className="editor-exercise-name"><strong>{exercise.exercise.name}</strong><span>{localizeMuscle(exercise.exercise.primaryMuscles[0])} · {localizeEquipment(exercise.exercise.equipment)}</span></div><input className="mini-input" type="number" min="1" max="30" value={exercise.targetSets} aria-label={`Séries de ${exercise.exercise.name}`} onChange={(event) => updateDraftExercise(exercise.id, 'targetSets', event.target.value)} /><input className="mini-input" type="number" min="1" max="999" value={exercise.targetReps} aria-label={`Reps de ${exercise.exercise.name}`} onChange={(event) => updateDraftExercise(exercise.id, 'targetReps', event.target.value)} /><input className="mini-input" type="text" inputMode="decimal" placeholder="kg" value={exercise.targetKg ?? ''} aria-label={`Peso de ${exercise.exercise.name}`} onChange={(event) => updateDraftExercise(exercise.id, 'targetKg', event.target.value)} /><div style={{ display: 'grid', gap: 3 }}><button className="icon-button" type="button" onClick={() => moveDraftExercise(index, -1)} aria-label="Mover para cima" disabled={index === 0}><ArrowUp size={14} /></button><button className="icon-button" type="button" onClick={() => moveDraftExercise(index, 1)} aria-label="Mover para baixo" disabled={index === draft.exercises.length - 1}><ArrowDown size={14} /></button></div><button className="icon-button" type="button" onClick={() => setDraft((current) => current ? { ...current, exercises: current.exercises.filter((item) => item.id !== exercise.id).map((item, order) => ({ ...item, order })) } : current)} aria-label={`Remover ${exercise.exercise.name}`}><Trash2 size={14} /></button></div>)}</div> : <div className="surface empty" style={{ padding: '20px 14px' }}><ListPlus size={22} color="var(--lime)" style={{ marginBottom: 8 }} /><p style={{ margin: 0 }}>Adicione exercícios do catálogo.</p></div>}<div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}><button className="btn btn-quiet" type="button" onClick={() => { setModal(null); setDraft(null); }}>Cancelar</button><button className="btn btn-primary" type="button" onClick={savePlan}><Save size={16} /> Salvar ficha</button></div></div></dialog></div>;
@@ -1387,7 +1434,7 @@ export default function Home() {
     return <main className="app-main" style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center' }}><div className="surface empty" style={{ width: '100%' }}><div className="empty-icon"><Dumbbell size={24} /></div><h2>Preparando seu treino</h2><p>Carregando o catálogo e seus dados locais.</p></div></main>;
   }
 
-  if (sessionViewId) return <>{renderSession()}{renderPlanModal()}{renderPickerModal()}{renderQuickStartModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{toast && <output className="toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</>;
+  if (sessionViewId) return <>{renderSession()}{renderPlanModal()}{renderPickerModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{toast && <output className="toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</>;
 
-  return <div ref={shellRef} className={'app-shell essential-shell' + (tab === 'today' ? ' essential-home' : '')}>{renderHeader()}{catalogLoading && <div className="app-main" style={{ paddingTop: 0 }}><p style={{ color: 'var(--muted)', fontSize: 11 }}>Sincronizando catálogo…</p></div>}{tab === 'today' && renderToday()}{tab === 'folder' && renderFolder()}{tab === 'week' && renderWeek()}{tab === 'data' && renderData()}{renderPlanModal()}{renderPickerModal()}{renderQuickStartModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{toast && <output className="toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</div>;
+  return <div ref={shellRef} className={'app-shell essential-shell' + (tab === 'today' ? ' essential-home' : '')}>{renderHeader()}{catalogLoading && <div className="app-main" style={{ paddingTop: 0 }}><p style={{ color: 'var(--muted)', fontSize: 11 }}>Sincronizando catálogo…</p></div>}{tab === 'today' && renderToday()}{tab === 'folder' && renderFolder()}{tab === 'week' && renderWeek()}{tab === 'data' && renderData()}{renderPlanModal()}{renderPickerModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{toast && <output className="toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</div>;
 }
