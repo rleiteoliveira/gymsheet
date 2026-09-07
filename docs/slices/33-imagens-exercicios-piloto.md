@@ -66,5 +66,5 @@ Composição 1:1, 768 × 768, corpo e equipamento completos, margem livre de 12%
 
 ## Débito
 
-- Tradução/aliases e ordenação do picker por recentes/favoritos exigem slice próprio se ainda doer depois dos slices 30 e 31.
+- Tradução/aliases e ordenação do picker por recentes/favoritos exigem slice próprio se ainda doer depois dos slices 32 e 33.
 - O lote completo só deve ser planejado depois de medir legibilidade, peso total e taxa de fallback deste piloto.
