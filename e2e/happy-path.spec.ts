@@ -75,21 +75,23 @@ async function capture(page: Page, info: TestInfo, name: string) {
   await info.attach(name, { path, contentType: 'image/png' });
 }
 
+const freeSessionName = 'Treino · domingo 06/09';
+
 test('começa livre, persiste série, recarrega, retoma o mesmo ID e conclui no calendário', async ({ page }) => {
   await openApp(page);
   const launcher = page.getByTestId('start-workout');
   await expect(launcher).toHaveText('Começar');
   await launcher.click();
-  const quickStart = page.getByRole('dialog', { name: 'Começar treino', exact: true });
-  await quickStart.getByLabel('Nome do treino').fill('Treino E2E');
-  await quickStart.getByRole('button', { name: 'Começar treino', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Começar treino' })).toHaveCount(0);
   const picker = page.getByRole('dialog', { name: 'Adicionar na sessão' });
   await picker.locator('button.picker-item').first().click();
+  await expect(page.locator('.session-clock, .progress-track, .status-chip')).toHaveCount(0);
   await page.getByLabel('Peso em quilogramas').fill('25');
   await page.getByLabel('Repetições', { exact: true }).fill('12');
   await page.getByTestId('quick-set-done').click();
   await expect.poll(async () => (await readState(page)).sessions[0]?.exercises[0]?.sets.length).toBe(1);
   const recorded = (await readState(page)).sessions[0];
+  expect(recorded.sourcePlanName).toBe(freeSessionName);
   expect(recorded.exercises[0].sets[0]).toMatchObject({ kg: 25, reps: 12 });
   await expect(launcher).toHaveCount(0);
   await page.getByRole('button', { name: 'Voltar', exact: true }).click();
@@ -97,7 +99,7 @@ test('começa livre, persiste série, recarrega, retoma o mesmo ID e conclui no 
   await expect(launcher).toHaveText('Retomar');
   await expect(page.getByRole('button', { name: /Escolher ficha:/ })).toHaveCount(0);
   await launcher.click();
-  await expect(page.getByRole('heading', { name: 'Treino E2E', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: freeSessionName, exact: true })).toBeVisible();
   await expect(page.getByText('Série 1', { exact: true })).toBeVisible();
   expect((await readState(page)).sessions).toEqual([recorded]);
   await page.getByTestId('finish-workout').click();
@@ -108,14 +110,16 @@ test('começa livre, persiste série, recarrega, retoma o mesmo ID e conclui no 
   await page.reload();
   await goTo(page, 'Calendário');
   await expect(page.getByRole('heading', { name: 'Calendário', exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: /Treino E2E/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Treino · domingo 06\/09/ })).toBeVisible();
   await expect(page.getByText('Concluída', { exact: true })).toBeVisible();
   await expect(launcher).toHaveCount(0);
   expect((await readState(page)).sessions).toEqual([completed]);
   await goTo(page, 'Treino');
   await launcher.click();
-  await expect(quickStart).toBeVisible();
-  expect((await readState(page)).sessions).toEqual([completed]);
+  await expect(page.getByRole('dialog', { name: 'Adicionar na sessão' })).toBeVisible();
+  const afterRestart = await readState(page);
+  expect(afterRestart.sessions[0]).toEqual(completed);
+  expect(afterRestart.sessions).toHaveLength(2);
 });
 
 test('nome abre Fichas e fixar permanece explícito, sem criar sessão', async ({ page }) => {
@@ -178,8 +182,10 @@ for (const action of ['Agora não', 'Retomar ontem', 'Encerrar ontem e começar 
   test('sessão anterior exige decisão explícita: ' + action, async ({ page }) => {
     const previous = {
       ...createQuickSession('Ontem', yesterday, () => 'previous'),
-      exercises: [{ id: 'previous-exercise', order: 0, planned: null, performed: toSnapshot(FALLBACK_EXERCISES[0]), status: 'added' as const,
-        sets: [{ id: 'previous-set', index: 1, kg: 60, reps: 8, savedAt: yesterday.toISOString() }] }],
+      exercises: [{
+        id: 'previous-exercise', order: 0, planned: null, performed: toSnapshot(FALLBACK_EXERCISES[0]), status: 'added' as const,
+        sets: [{ id: 'previous-set', index: 1, kg: 60, reps: 8, savedAt: yesterday.toISOString() }]
+      }],
     };
     const state: AppState = { ...pinned, sessions: [previous] };
     await openApp(page, state);
@@ -201,6 +207,48 @@ for (const action of ['Agora não', 'Retomar ontem', 'Encerrar ontem e começar 
     }
   });
 }
+
+test('ficha: pular, trocar, adicionar, recarregar e finalizar o mesmo ID', async ({ page }) => {
+  const twoExercisePlan: Plan = {
+    ...plan,
+    exercises: [
+      plan.exercises[0],
+      { ...plan.exercises[0], id: 'plan-exercise-2', order: 1, exercise: { ...toSnapshot(FALLBACK_EXERCISES[1]), images: [] } },
+    ],
+  };
+  await openApp(page, { plans: [twoExercisePlan], sessions: [], todayPin: { kind: 'plan', id: twoExercisePlan.id } });
+  await page.getByTestId('start-workout').click();
+  await expect(page.getByRole('heading', { name: 'Peito', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Pular', exact: true })).toBeVisible();
+  await expect(page.locator('.session-clock, .progress-track, .status-chip')).toHaveCount(0);
+  await expect(page.getByText('Feito', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Pular', exact: true }).click();
+  await page.getByRole('button', { name: 'Trocar', exact: true }).click();
+  const swapPicker = page.getByRole('dialog', { name: 'Trocar exercício' });
+  await swapPicker.locator('button.picker-item').nth(2).click();
+  await page.getByLabel('Peso em quilogramas').fill('30');
+  await page.getByLabel('Repetições', { exact: true }).fill('8');
+  await page.getByTestId('quick-set-done').click();
+  await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
+  const addPicker = page.getByRole('dialog', { name: 'Adicionar na sessão' });
+  await addPicker.locator('button.picker-item').nth(3).click();
+  await page.getByLabel('Peso em quilogramas').fill('12');
+  await page.getByLabel('Repetições', { exact: true }).fill('10');
+  await page.getByTestId('quick-set-done').click();
+  await expect.poll(async () => (await readState(page)).sessions[0]?.exercises.map((exercise) => exercise.status)).toEqual(['skipped', 'swapped', 'added']);
+  const recorded = (await readState(page)).sessions[0];
+  await page.getByRole('button', { name: 'Voltar', exact: true }).click();
+  await page.reload();
+  await page.getByTestId('start-workout').click();
+  expect((await readState(page)).sessions).toEqual([recorded]);
+  await page.getByTestId('finish-workout').click();
+  await expect.poll(async () => (await readState(page)).sessions[0]?.state).toBe('completed');
+  const completed = (await readState(page)).sessions[0];
+  expect(completed.id).toBe(recorded.id);
+  expect(completed.exercises.map((exercise) => exercise.status)).toEqual(['skipped', 'swapped', 'added']);
+  expect(completed.exercises[1].sets[0]).toMatchObject({ kg: 30, reps: 8 });
+  expect(completed.exercises[2].sets[0]).toMatchObject({ kg: 12, reps: 10 });
+});
 
 test('sessão concluída permanece intacta ao começar outro treino com ficha', async ({ page }) => {
   const completed = { ...createSessionFromPlan(plan, now, () => 'completed'), state: 'completed' as const, completedAt: now.toISOString() };

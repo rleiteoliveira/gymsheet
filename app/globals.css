@@ -345,3 +345,122 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 }
 
 .essential-menu-heading .essential-icon-button { margin-left: auto; }
+
+/* Slice 26: session surface only. */
+.essential-session {
+  --essential-bg: #11120f;
+  --essential-surface: #191a16;
+  --essential-text: #f2f0e8;
+  --essential-muted: #a4a49a;
+  --essential-line: #30312c;
+  min-height: 100dvh;
+  background: #11120f;
+  color: var(--essential-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.essential-session-main {
+  width: min(100%, 560px);
+  margin: 0 auto;
+  padding: calc(16px + env(safe-area-inset-top)) 24px calc(32px + env(safe-area-inset-bottom));
+}
+.essential-session-header { display: grid; gap: 16px; }
+.essential-session-header h1 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.875rem;
+  font-weight: 400;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.essential-session-list { display: grid; gap: 8px; margin: 32px 0 0; padding: 0; list-style: none; }
+.essential-exercise { border-bottom: 1px solid var(--essential-line); padding: 16px 0; }
+.essential-exercise.active { border-bottom-color: var(--essential-text); }
+.essential-exercise-select {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.essential-exercise-index { flex: 0 0 auto; color: var(--essential-muted); font-size: .875rem; }
+.essential-exercise-name { min-width: 0; font-size: 1rem; overflow-wrap: anywhere; }
+.essential-exercise-note { margin: 8px 0 0; color: var(--essential-muted); font-size: .875rem; }
+.essential-set-list { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
+.essential-set-row { display: flex; justify-content: space-between; gap: 12px; color: var(--essential-muted); font-size: .875rem; }
+.essential-set-row strong { color: var(--essential-text); font-weight: 600; }
+.essential-composer { display: grid; gap: 12px; margin-top: 16px; }
+.essential-composer-label { margin: 0; color: var(--essential-muted); font-size: .875rem; }
+.essential-composer-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.essential-input-wrap { position: relative; display: block; }
+.essential-input {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--essential-line);
+  border-radius: 10px;
+  padding: 0 40px 0 16px;
+  color: var(--essential-text);
+  background: var(--essential-surface);
+  font-size: 1rem;
+}
+.essential-input-wrap span {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  color: var(--essential-muted);
+  font-size: .75rem;
+  pointer-events: none;
+}
+.essential-exercise-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.essential-session-empty { margin-top: 48px; }
+.essential-session-footer { display: grid; gap: 8px; margin-top: 32px; }
+.essential-session-primary, .essential-session-secondary, .essential-session-quiet {
+  min-height: 48px;
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 1rem;
+  cursor: pointer;
+}
+.essential-session-primary {
+  display: block;
+  width: 100%;
+  min-height: 52px;
+  border: 1px solid var(--essential-text);
+  color: var(--essential-bg);
+  background: var(--essential-text);
+  font-weight: 600;
+}
+.essential-session-primary:hover { background: #e4e2d9; }
+.essential-session-secondary {
+  border: 1px solid var(--essential-line);
+  color: var(--essential-text);
+  background: transparent;
+  font-weight: 600;
+}
+.essential-session-quiet {
+  border: 0;
+  color: var(--essential-muted);
+  background: transparent;
+}
+.essential-session-header .essential-session-quiet,
+.essential-exercise-actions .essential-session-secondary,
+.essential-exercise-actions .essential-session-quiet {
+  min-width: 48px;
+}
+.essential-session button:focus-visible,
+.essential-session input:focus-visible,
+.essential-session h1:focus-visible {
+  outline: 2px solid var(--essential-text);
+  outline-offset: 4px;
+}
+@media (max-width: 420px) {
+  .essential-composer-row { grid-template-columns: 1fr; }
+}
