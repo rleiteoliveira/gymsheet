@@ -1,4 +1,4 @@
-# Slice 30 — Fluxo principal direto
+# Slice 32 — Fluxo principal direto
 
 - Issue: [#43](https://github.com/rleiteoliveira/gymsheet/issues/43)
 - Status: doing
@@ -20,7 +20,7 @@ Evidência de origem: auditoria de produção em 07/09/2026, viewport 390 × 844
 
 - Preencher a inicial com métricas, cards, relógio, barra de progresso, slogan ou resumo semanal
 - Mudar regras de sessão, status `done` / `skipped` / `swapped` / `added`, conclusão, calendário ou edição retroativa
-- Renovar imagens ou reordenar/traduzir o catálogo; isso fica no slice 31
+- Renovar imagens ou reordenar/traduzir o catálogo; isso fica no slice 33
 - #1, #6, #7, schema, IndexedDB, backup, CSV, `components/ui`, CI ou deploy
 - Pedir QA ao dono
 
@@ -54,5 +54,5 @@ Não introduzir navegação inferior, FAB, carrossel, gesto oculto ou ícone sem
 
 ## Débito
 
-- Imagens, nomes/aliases em português e ordenação por recentes/favoritos ficam no slice 31.
+- Imagens, nomes/aliases em português e ordenação por recentes/favoritos ficam no slice 33.
 - A consolidação remove somente duplicação dos tokens essenciais que já estão em uso; estilos legados sem consumidor só saem em manutenção posterior comprovada.

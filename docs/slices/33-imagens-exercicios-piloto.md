@@ -1,4 +1,4 @@
-# Slice 31 — Imagens de exercícios, piloto
+# Slice 33 — Imagens de exercícios, piloto
 
 - Issue: [#44](https://github.com/rleiteoliveira/gymsheet/issues/44)
 - Status: draft
@@ -6,7 +6,7 @@
 
 Objetivo: provar um padrão visual próprio em seis movimentos comuns antes de renderizar centenas de imagens. Os IDs e metadados da Free Exercise DB continuam sendo a referência de catálogo; o app passa a preferir um asset local aprovado e usa a foto atual como fallback.
 
-Depende do slice 30 concluído. Antes de promover este slice para `ready`, anexar ao repositório uma referência visual aprovada de um exercício no estilo abaixo. Sem essa referência, o executor prepara somente três opções visuais e para para escolha; não gera o lote.
+Depende do slice 32 concluído. Antes de promover este slice para `ready`, anexar ao repositório uma referência visual aprovada de um exercício no estilo abaixo. Sem essa referência, o executor prepara somente três opções visuais e para para escolha; não gera o lote.
 
 ## Faz
 
