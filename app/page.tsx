@@ -2,7 +2,6 @@
 
 import {
   Activity,
-  AlertTriangle,
   CalendarDays,
   ChevronDown,
   Database,
@@ -10,7 +9,6 @@ import {
   FolderOpen,
   History,
   Menu,
-  Play,
   X,
 } from 'lucide-react';
 import { Dialog } from '@base-ui/react/dialog';
@@ -965,9 +963,12 @@ export default function Home() {
   function renderUpdateBanner() {
     if (!updateReady) return null;
     return (
-      <output className="update-banner" aria-live="polite">
-        <div className="update-banner-copy"><strong>Nova versão disponível</strong><span>Atualize o GymSheet sem apagar seus treinos.</span></div>
-        <div className="update-banner-actions"><button className="btn btn-primary btn-small" type="button" onClick={applyServiceWorkerUpdate}>Atualizar agora</button><button className="btn btn-quiet btn-small" type="button" onClick={() => setUpdateReady(false)}>Depois</button></div>
+      <output className="essential-banner" aria-live="polite">
+        <div className="essential-banner-copy"><strong>Nova versão disponível</strong><span>Atualize o GymSheet sem apagar seus treinos.</span></div>
+        <div className="essential-banner-actions">
+          <button className="essential-primary" type="button" onClick={applyServiceWorkerUpdate}>Atualizar agora</button>
+          <button className="essential-quiet" type="button" onClick={() => setUpdateReady(false)}>Depois</button>
+        </div>
       </output>
     );
   }
@@ -976,10 +977,9 @@ export default function Home() {
     if (!catalogMeta.error) return null;
     const isFallback = catalogMeta.source === 'fallback';
     return (
-      <output className="warning">
-        <AlertTriangle size={16} />
+      <output className="essential-alert">
         <div><strong>{isFallback ? 'Catálogo offline.' : 'Catálogo remoto indisponível.'}</strong>{' '}{isFallback ? 'Usando 40 compostos essenciais salvos no app.' : 'Usando a última cópia salva no aparelho.'}</div>
-        <button type="button" onClick={() => void refreshCatalog()}>Tentar</button>
+        <button className="essential-quiet" type="button" onClick={() => void refreshCatalog()}>Tentar</button>
       </output>
     );
   }
@@ -1201,13 +1201,13 @@ export default function Home() {
       <div className="essential-session">
         <main className="essential-session-main">
           <header className="essential-session-header">
-            <button className="essential-session-quiet" type="button" onClick={leaveSession}>Voltar</button>
+            <button className="essential-quiet" type="button" onClick={leaveSession}>Voltar</button>
             <h1 tabIndex={-1}>{activeSession.sourcePlanName ?? 'Sessão vazia'}</h1>
           </header>
 
           {activeSession.exercises.length === 0 ? (
             <div className="essential-session-empty">
-              <button className="essential-session-primary" type="button" onClick={openAdd}>Adicionar exercício</button>
+              <button className="essential-primary" type="button" onClick={openAdd}>Adicionar exercício</button>
             </div>
           ) : (
             <ul className="essential-session-list">
@@ -1273,21 +1273,21 @@ export default function Home() {
                                   <span>reps</span>
                                 </label>
                               </div>
-                              <button className="essential-session-primary" type="button" data-testid="quick-set-done" onClick={saveSet}>Salvar série</button>
+                              <button className="essential-primary" type="button" data-testid="quick-set-done" onClick={saveSet}>Salvar série</button>
                             </div>
                           )}
                           <div className="essential-exercise-actions">
                             {exercise.status === null && exercise.planned && (
                               <>
-                                <button className="essential-session-secondary" type="button" onClick={() => markSkipped(exercise.id)}>Pular</button>
-                                <button className="essential-session-secondary" type="button" onClick={() => openPicker('swap', exercise.id)}>Trocar</button>
+                                <button className="essential-secondary" type="button" onClick={() => markSkipped(exercise.id)}>Pular</button>
+                                <button className="essential-secondary" type="button" onClick={() => openPicker('swap', exercise.id)}>Trocar</button>
                               </>
                             )}
                             {inProgress && (
-                              <button className="essential-session-secondary" type="button" onClick={openAdd}>Adicionar</button>
+                              <button className="essential-secondary" type="button" onClick={openAdd}>Adicionar</button>
                             )}
                             {exercise.status !== null && (
-                              <button className="essential-session-quiet" type="button" onClick={() => undoExercise(exercise.id)}>Desfazer</button>
+                              <button className="essential-quiet" type="button" onClick={() => undoExercise(exercise.id)}>Desfazer</button>
                             )}
                           </div>
                         </>
@@ -1302,19 +1302,19 @@ export default function Home() {
           {inProgress ? (
             <div className="essential-session-footer">
               <button
-                className={composing || activeSession.exercises.length === 0 ? 'essential-session-secondary' : 'essential-session-primary'}
+                className={composing || activeSession.exercises.length === 0 ? 'essential-secondary' : 'essential-primary'}
                 type="button"
                 data-testid="finish-workout"
                 onClick={finishSession}
               >
                 Finalizar
               </button>
-              <button className="essential-session-quiet" type="button" onClick={() => discardSession()}>Descartar</button>
+              <button className="essential-quiet" type="button" onClick={() => discardSession()}>Descartar</button>
             </div>
           ) : (
             <div className="essential-session-footer">
               <p className="essential-exercise-note">Correção do registro deste dia.</p>
-              <button className="essential-session-secondary" type="button" onClick={leaveSession}>Voltar ao calendário</button>
+              <button className="essential-secondary" type="button" onClick={leaveSession}>Voltar ao calendário</button>
             </div>
           )}
         </main>
@@ -1327,19 +1327,17 @@ export default function Home() {
     const previous = state.sessions.find((session) => session.id === pendingSessionStart.previousSessionId);
     if (!previous) return null;
     return (
-      <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPendingSessionStart(null); }}>
-        <dialog open className="modal" aria-modal="true" aria-labelledby="previous-session-modal-title">
-          <div className="modal-head">
-            <div>
-              <h2 id="previous-session-modal-title">Treino anterior ainda aberto</h2>
-              <p>{previous.sourcePlanName ?? 'Sessão vazia'} começou {formatDateTime(previous.startedAt)}. Escolha antes de registrar séries hoje.</p>
-            </div>
-            <button className="btn btn-quiet btn-icon" type="button" onClick={() => setPendingSessionStart(null)} aria-label="Agora não"><X size={20} /></button>
+      <div className="essential-sheet-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPendingSessionStart(null); }}>
+        <dialog open className="essential-sheet" aria-modal="true" aria-labelledby="previous-session-modal-title">
+          <div className="essential-sheet-head">
+            <h2 id="previous-session-modal-title">Treino anterior ainda aberto</h2>
+            <button className="essential-quiet" type="button" onClick={() => setPendingSessionStart(null)}>Agora não</button>
           </div>
-          <div className="button-stack">
-            <button className="btn btn-secondary btn-block" type="button" onClick={resumePreviousSession}><History size={17} /> Retomar ontem</button>
-            <button className="btn btn-primary btn-block" type="button" onClick={completePreviousAndStartToday}><Play size={17} fill="currentColor" /> Encerrar ontem e começar hoje</button>
-            <button className="btn btn-quiet btn-block" type="button" onClick={() => setPendingSessionStart(null)}>Agora não</button>
+          <div className="essential-sheet-body">
+            <p className="essential-exercise-note">{previous.sourcePlanName ?? 'Sessão vazia'} · {formatDateTime(previous.startedAt)}</p>
+            <button className="essential-secondary" type="button" onClick={resumePreviousSession}>Retomar ontem</button>
+            <button className="essential-primary" type="button" onClick={completePreviousAndStartToday}>Encerrar ontem e começar hoje</button>
+            <button className="essential-quiet" type="button" onClick={() => setPendingSessionStart(null)}>Agora não</button>
           </div>
         </dialog>
       </div>
@@ -1463,11 +1461,10 @@ export default function Home() {
   }
 
   if (!ready) {
-    return <main className="app-main" style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center' }}><div className="surface empty" style={{ width: '100%' }}><div className="empty-icon"><Dumbbell size={24} /></div><h2>Preparando seu treino</h2><p>Carregando o catálogo e seus dados locais.</p></div></main>;
+    return <main className="essential-page essential-loading"><h1 className="essential-page-title">GymSheet</h1><p className="essential-exercise-note">Carregando os dados locais.</p></main>;
   }
 
-  if (sessionViewId) return <>{renderSession()}{renderPlanModal()}{renderPickerModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{toast && <output className="toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</>;
+  if (sessionViewId) return <>{renderSession()}{renderPlanModal()}{renderPickerModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{toast && <output className="essential-toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</>;
 
-  const essentialSurface = tab === 'today' || tab === 'folder' || tab === 'week' || tab === 'data';
-  return <div ref={shellRef} className={'app-shell essential-shell' + (essentialSurface ? ' essential-home' : '')}>{renderHeader()}{catalogLoading && !essentialSurface && <div className="app-main" style={{ paddingTop: 0 }}><p style={{ color: 'var(--muted)', fontSize: 11 }}>Sincronizando catálogo…</p></div>}{tab === 'today' && renderToday()}{tab === 'folder' && renderFolder()}{tab === 'week' && renderWeek()}{tab === 'data' && renderData()}{renderPlanModal()}{renderPickerModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{toast && <output className="toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</div>;
+  return <div ref={shellRef} className="app-shell essential-shell essential-home">{renderHeader()}{tab === 'today' && renderToday()}{tab === 'folder' && renderFolder()}{tab === 'week' && renderWeek()}{tab === 'data' && renderData()}{renderPlanModal()}{renderPickerModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{toast && <output className="essential-toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</div>;
 }
