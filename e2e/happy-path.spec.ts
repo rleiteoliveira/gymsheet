@@ -111,10 +111,22 @@ test('começa livre, persiste série, recarrega, retoma o mesmo ID e conclui no 
   await page.reload();
   await goTo(page, 'Calendário');
   await expect(page.getByRole('heading', { name: 'Calendário', exact: true })).toBeVisible();
+  await expect(page.getByText('Top skipped')).toHaveCount(0);
+  await expect(page.getByText('O que aconteceu')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: /Treino · domingo 06\/09/ })).toBeVisible();
-  await expect(page.getByText('Concluída', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Concluída/)).toBeVisible();
   await expect(launcher).toHaveCount(0);
   expect((await readState(page)).sessions).toEqual([completed]);
+  await page.getByRole('button', { name: 'Adicionar sessão neste dia', exact: true }).click();
+  const retroactive = page.getByRole('dialog', { name: 'Nova sessão', exact: true });
+  await expect(retroactive).toBeVisible();
+  await retroactive.getByRole('button', { name: 'Agora não', exact: true }).click();
+  await expect(retroactive).toHaveCount(0);
+  expect((await readState(page)).sessions).toEqual([completed]);
+  await goTo(page, 'Histórico');
+  await expect(page.getByRole('heading', { name: 'Histórico', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: freeSessionName, exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Começar sessão vazia' })).toHaveCount(0);
   await goTo(page, 'Treino');
   await launcher.click();
   await expect(page.getByRole('dialog', { name: 'Adicionar na sessão' })).toBeVisible();
@@ -192,12 +204,12 @@ test('menu oferece cinco destinos, contém foco e fecha por teclado e clique ext
   await expect(trigger).toBeFocused();
   for (const [destination, title] of [
     ['Fichas', 'Fichas'], ['Histórico', 'Histórico'],
-    ['Calendário', 'O que aconteceu'], ['Dados e backup', 'Seu histórico é seu'], ['Treino', 'Peito'],
+    ['Calendário', 'Calendário'], ['Dados e backup', 'Seu histórico é seu'], ['Treino', 'Peito'],
   ]) {
     await goTo(page, destination);
     await expect(page.locator('main h1')).toContainText(title);
     if (destination === 'Fichas') await expect(page.getByRole('heading', { name: 'Peito', exact: true })).toBeVisible();
-    if (destination === 'Histórico') await expect(page.getByRole('heading', { name: 'Nenhuma sessão ainda', exact: true })).toBeVisible();
+    if (destination === 'Histórico') await expect(page.getByText('Nenhuma sessão ainda', { exact: true })).toBeVisible();
     await expect(page.getByTestId('start-workout')).toHaveCount(destination === 'Treino' ? 1 : 0);
   }
   expect(await readState(page)).toEqual(pinned);

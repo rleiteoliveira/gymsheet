@@ -764,3 +764,91 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
         padding-bottom: 24px;
     }
 }
+/* Slice 28: history and calendar only. */
+.essential-calendar-head {
+    display: grid;
+    gap: 12px;
+}
+
+.essential-calendar-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.essential-weekdays,
+.essential-calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 4px;
+}
+
+.essential-weekdays {
+    margin-top: 16px;
+    color: var(--essential-muted);
+    font-size: .75rem;
+    text-align: center;
+    text-transform: lowercase;
+}
+
+.essential-day {
+    display: grid;
+    place-items: center;
+    gap: 2px;
+    min-height: 48px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    padding: 4px 2px;
+    color: var(--essential-text);
+    background: transparent;
+    font: inherit;
+    cursor: pointer;
+}
+
+.essential-day.outside {
+    color: var(--essential-muted);
+}
+
+.essential-day.today {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+}
+
+.essential-day.selected {
+    border-color: var(--essential-text);
+}
+
+.essential-day:disabled {
+    opacity: .32;
+    cursor: not-allowed;
+}
+
+.essential-day-mark {
+    min-width: 16px;
+    color: var(--essential-muted);
+    font-size: .75rem;
+}
+
+.essential-day.has-session .essential-day-mark {
+    color: var(--essential-text);
+}
+
+.essential-calendar-detail {
+    margin-top: 32px;
+}
+
+.essential-calendar-detail h2 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    text-transform: capitalize;
+}
+
+.essential-calendar-detail>.essential-secondary {
+    width: 100%;
+    margin-top: 16px;
+}
+
+.essential-plan>.essential-secondary {
+    margin-top: 12px;
+}

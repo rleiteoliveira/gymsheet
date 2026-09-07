@@ -4,12 +4,7 @@ import {
   Activity,
   AlertTriangle,
   CalendarDays,
-  Check,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  CircleCheck,
-  CirclePlus,
   Database,
   Dumbbell,
   FileDown,
@@ -19,10 +14,7 @@ import {
   Info,
   Menu,
   Play,
-  Plus,
   RefreshCw,
-  RotateCcw,
-  SkipForward,
   Upload,
   X,
 } from 'lucide-react';
@@ -50,14 +42,12 @@ import type {
   AppState,
   CatalogExercise,
   CatalogSource,
-  ExerciseStatus,
   Plan,
   PlanExercise,
   Session,
   SessionExercise,
   SetRecord,
 } from '@/lib/types';
-import { STATUS_HINTS, STATUS_LABELS } from '@/lib/types';
 
 type Tab = 'today' | 'folder' | 'week' | 'data';
 type FolderTab = 'plans' | 'sessions';
@@ -101,20 +91,6 @@ function clonePlan(plan: Plan): PlanDraft {
 
 function shiftMonth(input: Date, amount: number) {
   return new Date(input.getFullYear(), input.getMonth() + amount, 1, 12, 0, 0, 0);
-}
-
-function startOfCurrentWeek(now = new Date()) {
-  const date = new Date(now);
-  const dayFromMonday = (date.getDay() + 6) % 7;
-  date.setDate(date.getDate() - dayFromMonday);
-  date.setHours(0, 0, 0, 0);
-  return date;
-}
-
-function endOfCurrentWeek(now = new Date()) {
-  const end = startOfCurrentWeek(now);
-  end.setDate(end.getDate() + 7);
-  return end;
 }
 
 const CALENDAR_WEEKDAYS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'];
@@ -196,21 +172,6 @@ function localizeMuscle(value: string | undefined) {
   return value ? labels[value] ?? value : 'força';
 }
 
-function statusIcon(status: ExerciseStatus) {
-  if (status === 'done') return <Check size={13} strokeWidth={3} />;
-  if (status === 'skipped') return <SkipForward size={13} />;
-  if (status === 'swapped') return <RotateCcw size={13} />;
-  return <Plus size={13} strokeWidth={3} />;
-}
-
-function StatusChip({ status }: { status: ExerciseStatus }) {
-  return (
-    <span className={`status-chip ${status}`} title={STATUS_HINTS[status]}>
-      {statusIcon(status)} {STATUS_LABELS[status]}
-    </span>
-  );
-}
-
 function ExerciseImage({ src, alt }: { src?: string; alt: string }) {
   const [failed, setFailed] = useState(false);
   const resolved = imageUrl(src);
@@ -227,56 +188,6 @@ function ExerciseImage({ src, alt }: { src?: string; alt: string }) {
       <img src={resolved} alt={alt} loading="lazy" onError={() => setFailed(true)} />
     </div>
   );
-}
-
-function getWeekStats(sessions: Session[], now = new Date()) {
-  const start = startOfCurrentWeek(now);
-  const end = endOfCurrentWeek(now);
-  const inWeek = sessions.filter((session) => {
-    const time = new Date(session.startedAt).getTime();
-    return time >= start.getTime() && time < end.getTime();
-  });
-  const trainedDates = new Set<string>();
-  let series = 0;
-  const skipped = new Map<string, number>();
-  const swapped = new Map<string, { count: number; planned: string; performed: string }>();
-  const added = new Map<string, number>();
-
-  for (const session of inWeek) {
-    if (session.state === 'completed') trainedDates.add(localDateKey(session.startedAt));
-    for (const exercise of session.exercises) {
-      series += exercise.sets.length;
-      if (exercise.status === 'skipped' && exercise.planned) {
-        const key = exercise.planned.exercise.name;
-        skipped.set(key, (skipped.get(key) ?? 0) + 1);
-      }
-      if (exercise.status === 'swapped' && exercise.planned && exercise.performed) {
-        const key = `${exercise.planned.exercise.name} → ${exercise.performed.name}`;
-        const item = swapped.get(key) ?? { count: 0, planned: exercise.planned.exercise.name, performed: exercise.performed.name };
-        swapped.set(key, { ...item, count: item.count + 1 });
-      }
-      if (exercise.status === 'added' && exercise.performed) {
-        const key = exercise.performed.name;
-        added.set(key, (added.get(key) ?? 0) + 1);
-      }
-    }
-  }
-
-  const list = (map: Map<string, number>) => [...map.entries()]
-    .map(([label, count]) => ({ label, count }))
-    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
-
-  return {
-    sessions: inWeek.length,
-    days: trainedDates.size,
-    series,
-    skipped: list(skipped),
-    swapped: [...swapped.entries()]
-      .map(([label, value]) => ({ label, count: value.count, detail: `${value.planned} → ${value.performed}` }))
-      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)),
-    added: list(added),
-    label: `${formatDate(start)} — ${formatDate(new Date(end.getTime() - 1), { year: 'numeric' })}`,
-  };
 }
 
 function escapeCsv(value: string | number | null | undefined) {
@@ -512,7 +423,6 @@ export default function Home() {
     () => state.sessions.find((session) => session.state === 'in_progress' && localDateKey(session.startedAt) === todayKey),
     [state.sessions, todayKey],
   );
-  const weekStats = useMemo(() => getWeekStats(state.sessions), [state.sessions]);
   const calendarDays = useMemo(() => calendarGrid(calendarCursor, state.sessions, today), [calendarCursor, state.sessions, today]);
   const selectedCalendarSessions = useMemo(() => sessionsForDate(state.sessions, calendarSelectedDateKey), [state.sessions, calendarSelectedDateKey]);
   const favoriteScores = useMemo(() => computeFavoriteScores(state.sessions, today), [state.sessions, today]);
@@ -1120,9 +1030,28 @@ export default function Home() {
   function renderFolder() {
     if (folderTab === 'sessions') {
       return (
-        <main className="app-main">
-          <h1 className="page-title" tabIndex={-1}>Histórico</h1>
-          {state.sessions.length ? <div className="list">{[...state.sessions].sort((a, b) => b.startedAt.localeCompare(a.startedAt)).map((session) => <div className="list-card" key={session.id}><div className="list-card-main"><h3>{session.sourcePlanName ?? 'Sessão vazia'} {session.state === 'in_progress' && <span className="status-chip added">Em andamento</span>}</h3><p>{formatDateTime(session.startedAt)} · {session.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0)} séries</p></div>{session.state === 'in_progress' ? <button className="btn btn-primary btn-small" type="button" onClick={() => openSession(session.id)}><Play size={14} /> Retomar</button> : <CircleCheck size={20} color="var(--lime)" />}</div>)}</div> : <div className="surface empty"><div className="empty-icon"><History size={24} /></div><h2>Nenhuma sessão ainda</h2><p>Quando você registrar sua primeira série, ela aparece aqui.</p><button className="btn btn-primary" type="button" onClick={() => startSession()}><Play size={18} /> Começar sessão vazia</button></div>}
+        <main className="essential-page">
+          <h1 className="essential-page-title" tabIndex={-1}>Histórico</h1>
+          {state.sessions.length ? (
+            <ul className="essential-plan-list">
+              {[...state.sessions].sort((a, b) => b.startedAt.localeCompare(a.startedAt)).map((session) => {
+                const series = session.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0);
+                return (
+                  <li className="essential-plan" key={session.id}>
+                    <div className="essential-plan-copy">
+                      <h2>{session.sourcePlanName ?? 'Sessão vazia'}</h2>
+                      <p>{formatDateTime(session.startedAt)} · {series} {series === 1 ? 'série' : 'séries'}{session.state === 'in_progress' ? ' · em andamento' : ''}</p>
+                    </div>
+                    {session.state === 'in_progress' && (
+                      <button className="essential-secondary" type="button" onClick={() => openSession(session.id)}>Retomar</button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="essential-exercise-note">Nenhuma sessão ainda</p>
+          )}
         </main>
       );
     }
@@ -1163,54 +1092,76 @@ export default function Home() {
     );
   }
 
-  function renderRankCard(title: string, items: Array<{ label: string; count: number; detail?: string }>, emptyText: string, status: ExerciseStatus) {
-    return <section className="surface" style={{ padding: 17 }}><div className="section-heading" style={{ margin: 0 }}><h2>{title}</h2><StatusChip status={status} /></div>{items.length ? <div className="rank-list">{items.slice(0, 5).map((item) => <div className="rank-item" key={`${item.label}-${item.count}`}><div><strong>{item.label}</strong><span>{item.detail ?? 'ocorrência na semana'}</span></div><span className="rank-count">{item.count}×</span></div>)}</div> : <p style={{ margin: '16px 0 0', color: 'var(--muted)', fontSize: 13 }}>{emptyText}</p>}</section>;
-  }
-
-  function renderCalendar() {
+  function renderWeek() {
     const todayKey = localDateKey(today);
     const selectedIsFuture = calendarSelectedDateKey > todayKey;
     const selectedLabel = formatDateKeyLabel(calendarSelectedDateKey, { weekday: 'long' });
     return (
-      <section className="calendar-section">
-        <div className="section-heading calendar-heading">
-          <div><h2>Calendário</h2><p>Abra uma sessão passada para corrigir ou completar.</p></div>
-          <div className="calendar-nav">
-            <button className="btn btn-quiet btn-icon" type="button" onClick={() => setCalendarCursor((current) => shiftMonth(current, -1))} aria-label="Mês anterior"><ChevronLeft size={18} /></button>
-            <button className="btn btn-secondary btn-small" type="button" onClick={() => { setCalendarCursor(monthStart(today)); setCalendarSelectedDateKey(todayKey); }}>Hoje</button>
-            <button className="btn btn-quiet btn-icon" type="button" onClick={() => setCalendarCursor((current) => shiftMonth(current, 1))} aria-label="Próximo mês"><ChevronRight size={18} /></button>
+      <main className="essential-page">
+        <div className="essential-calendar-head">
+          <h1 className="essential-page-title" tabIndex={-1}>Calendário</h1>
+          <div className="essential-calendar-nav">
+            <button className="essential-quiet" type="button" onClick={() => setCalendarCursor((current) => shiftMonth(current, -1))} aria-label="Mês anterior">Anterior</button>
+            <button className="essential-quiet" type="button" onClick={() => { setCalendarCursor(monthStart(today)); setCalendarSelectedDateKey(todayKey); }}>Hoje</button>
+            <button className="essential-quiet" type="button" onClick={() => setCalendarCursor((current) => shiftMonth(current, 1))} aria-label="Próximo mês">Próximo</button>
           </div>
         </div>
-        <div className="surface calendar-card">
-          <div className="calendar-month-title"><strong>{monthTitle(calendarCursor)}</strong><span>• = sessão registrada</span></div>
-          <div className="calendar-weekdays" aria-hidden="true">{CALENDAR_WEEKDAYS.map((day) => <span key={day}>{day}</span>)}</div>
-          <div className="calendar-grid" role="grid" aria-label={`Calendário de ${monthTitle(calendarCursor)}`}>
-            {calendarDays.map((day) => {
-              const hasCompleted = day.sessions.some((session) => session.state === 'completed');
-              const hasOpen = day.sessions.some((session) => session.state === 'in_progress');
-              const sessionLabel = day.sessions.length === 1 ? '1 sessão' : `${day.sessions.length} sessões`;
-              return <button className={`calendar-day ${day.inCurrentMonth ? '' : 'outside'} ${day.dateKey === calendarSelectedDateKey ? 'selected' : ''} ${day.isToday ? 'today' : ''} ${hasCompleted ? 'completed' : ''} ${hasOpen ? 'in-progress' : ''}`} key={day.dateKey} type="button" disabled={day.isFuture} aria-pressed={day.dateKey === calendarSelectedDateKey} aria-label={`${formatDateKeyLabel(day.dateKey, { weekday: 'long', year: 'numeric' })}${day.sessions.length ? `, ${sessionLabel}` : ''}`} onClick={() => selectCalendarDate(day)}><span className="calendar-day-number">{day.date.getDate()}</span>{day.sessions.length > 0 && <span className="calendar-day-dot" aria-hidden="true">{day.sessions.length > 9 ? '9+' : day.sessions.length}</span>}</button>;
-            })}
-          </div>
+        <p className="essential-exercise-note">{monthTitle(calendarCursor)}</p>
+        <div className="essential-weekdays" aria-hidden="true">{CALENDAR_WEEKDAYS.map((day) => <span key={day}>{day}</span>)}</div>
+        <div className="essential-calendar-grid" role="grid" aria-label={`Calendário de ${monthTitle(calendarCursor)}`}>
+          {calendarDays.map((day) => {
+            const sessionLabel = day.sessions.length === 1 ? '1 sessão' : `${day.sessions.length} sessões`;
+            const classes = [
+              'essential-day',
+              day.inCurrentMonth ? '' : 'outside',
+              day.dateKey === calendarSelectedDateKey ? 'selected' : '',
+              day.isToday ? 'today' : '',
+              day.sessions.length ? 'has-session' : '',
+            ].filter(Boolean).join(' ');
+            return (
+              <button
+                className={classes}
+                key={day.dateKey}
+                type="button"
+                disabled={day.isFuture}
+                aria-pressed={day.dateKey === calendarSelectedDateKey}
+                aria-label={`${formatDateKeyLabel(day.dateKey, { weekday: 'long', year: 'numeric' })}${day.sessions.length ? `, ${sessionLabel}` : ''}`}
+                onClick={() => selectCalendarDate(day)}
+              >
+                <span>{day.date.getDate()}</span>
+                {day.sessions.length > 0 && <span className="essential-day-mark" aria-hidden="true">{day.sessions.length > 9 ? '9+' : day.sessions.length}</span>}
+              </button>
+            );
+          })}
         </div>
-        <div className="calendar-detail">
-          <div className="section-heading" style={{ marginTop: 18 }}><div><h2>{selectedLabel}</h2><p>{selectedCalendarSessions.length ? `${selectedCalendarSessions.length} ${selectedCalendarSessions.length === 1 ? 'sessão' : 'sessões'}` : 'nenhuma sessão registrada'}</p></div></div>
-          {selectedCalendarSessions.length ? <div className="list">{selectedCalendarSessions.map((session) => { const plan = session.sourcePlanId ? state.plans.find((item) => item.id === session.sourcePlanId) : undefined; return <div className="list-card calendar-session-card" key={session.id}><div className="list-card-main"><h3>{plan?.emoji ? `${plan.emoji} ` : ''}{session.sourcePlanName ?? 'Sessão vazia'} {session.state === 'in_progress' ? <span className="status-chip added">Em andamento</span> : <span className="calendar-session-state">Concluída</span>}</h3><p>{formatDateTime(session.startedAt)} · {session.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0)} séries</p></div><button className={`btn ${session.state === 'in_progress' ? 'btn-primary' : 'btn-secondary'} btn-small`} type="button" onClick={() => openSession(session.id)}>{session.state === 'in_progress' ? <><Play size={14} /> Retomar</> : <><History size={14} /> Editar</>}</button></div>; })}</div> : <div className="surface calendar-empty"><History size={22} color="var(--muted)" /><p>Nenhum registro neste dia. Crie uma sessão para lançar um treino passado.</p></div>}
-          {!selectedIsFuture && <button className="btn btn-secondary calendar-add-button" type="button" onClick={() => openRetroactiveSession()}><Plus size={16} /> Adicionar sessão neste dia</button>}
-          {selectedIsFuture && <p className="calendar-future-note">Datas futuras ficam bloqueadas até acontecerem.</p>}
-        </div>
-      </section>
-    );
-  }
-
-  function renderWeek() {
-    return (
-      <main className="app-main">
-        <section><p className="eyebrow">Semana atual</p><h1 className="page-title" tabIndex={-1}>O que aconteceu</h1><p className="page-lede">{weekStats.label}. Sem gráfico, só sinais úteis para o próximo treino.</p></section>
-        <div className="metric-grid" style={{ marginTop: 22 }}><div className="metric"><strong>{weekStats.days}</strong><span>dias treinados</span></div><div className="metric"><strong>{weekStats.sessions}</strong><span>sessões</span></div><div className="metric"><strong>{weekStats.series}</strong><span>séries salvas</span></div></div>
-        {renderCalendar()}
-        <div style={{ display: 'grid', gap: 11, marginTop: 22 }}>{renderRankCard('Top skipped', weekStats.skipped, 'Nenhum exercício pulado.', 'skipped')}{renderRankCard('Top swapped', weekStats.swapped, 'Nenhum exercício trocado.', 'swapped')}{renderRankCard('Top added', weekStats.added, 'Nenhum exercício adicionado.', 'added')}</div>
-        <div className="warning" style={{ marginTop: 17, borderColor: 'rgb(98 217 246 / 25%)', background: 'rgb(98 217 246 / 6%)', color: 'var(--muted)' }}><Info size={16} color="var(--blue)" /><div>Os números atualizam enquanto a sessão está em andamento. O histórico fica no aparelho.</div></div>
+        <section className="essential-calendar-detail">
+          <h2>{selectedLabel}</h2>
+          {selectedCalendarSessions.length ? (
+            <ul className="essential-plan-list">
+              {selectedCalendarSessions.map((session) => {
+                const plan = session.sourcePlanId ? state.plans.find((item) => item.id === session.sourcePlanId) : undefined;
+                const series = session.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0);
+                return (
+                  <li className="essential-plan" key={session.id}>
+                    <div className="essential-plan-copy">
+                      <h3>{plan?.emoji ? `${plan.emoji} ` : ''}{session.sourcePlanName ?? 'Sessão vazia'}</h3>
+                      <p>{formatDateTime(session.startedAt)} · {series} {series === 1 ? 'série' : 'séries'} · {session.state === 'in_progress' ? 'em andamento' : 'Concluída'}</p>
+                    </div>
+                    <button className="essential-secondary" type="button" onClick={() => openSession(session.id)}>
+                      {session.state === 'in_progress' ? 'Retomar' : 'Editar'}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="essential-exercise-note">Nenhuma sessão neste dia</p>
+          )}
+          {!selectedIsFuture && (
+            <button className="essential-secondary" type="button" onClick={() => openRetroactiveSession()}>Adicionar sessão neste dia</button>
+          )}
+          {selectedIsFuture && <p className="essential-exercise-note">Datas futuras ficam bloqueadas até acontecerem.</p>}
+        </section>
       </main>
     );
   }
@@ -1401,16 +1352,21 @@ export default function Home() {
     if (!retroactiveDateKey) return null;
     const dateLabel = formatDateKeyLabel(retroactiveDateKey, { weekday: 'long' });
     return (
-      <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setRetroactiveDateKey(null); }}>
-        <dialog open className="modal" aria-modal="true" aria-labelledby="retroactive-modal-title">
-          <div className="modal-head">
-            <div><h2 id="retroactive-modal-title">Nova sessão</h2><p>Escolha uma ficha para {dateLabel}. A sessão passada começa ao meio-dia local.</p></div>
-            <button className="btn btn-quiet btn-icon" type="button" onClick={() => setRetroactiveDateKey(null)} aria-label="Fechar"><X size={20} /></button>
+      <div className="essential-sheet-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setRetroactiveDateKey(null); }}>
+        <dialog open className="essential-sheet" aria-modal="true" aria-labelledby="retroactive-modal-title">
+          <div className="essential-sheet-head">
+            <h2 id="retroactive-modal-title">Nova sessão</h2>
+            <button className="essential-quiet" type="button" onClick={() => setRetroactiveDateKey(null)} aria-label="Fechar">Fechar</button>
           </div>
-          <div className="button-stack">
-            <button className="btn btn-primary btn-block" type="button" onClick={() => createCalendarSession()}><CirclePlus size={17} /> Sessão vazia</button>
-            {state.plans.map((plan) => <button className="btn btn-secondary btn-block" type="button" key={plan.id} onClick={() => createCalendarSession(plan)}>{plan.emoji ? `${plan.emoji} ` : ''}{plan.name}</button>)}
-            <button className="btn btn-quiet btn-block" type="button" onClick={() => setRetroactiveDateKey(null)}>Agora não</button>
+          <div className="essential-sheet-body">
+            <p className="essential-exercise-note">{dateLabel}</p>
+            <button className="essential-primary" type="button" onClick={() => createCalendarSession()}>Sessão vazia</button>
+            {state.plans.map((plan) => (
+              <button className="essential-secondary" type="button" key={plan.id} onClick={() => createCalendarSession(plan)}>
+                {plan.emoji ? `${plan.emoji} ` : ''}{plan.name}
+              </button>
+            ))}
+            <button className="essential-quiet" type="button" onClick={() => setRetroactiveDateKey(null)}>Agora não</button>
           </div>
         </dialog>
       </div>
@@ -1514,6 +1470,6 @@ export default function Home() {
 
   if (sessionViewId) return <>{renderSession()}{renderPlanModal()}{renderPickerModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{toast && <output className="toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</>;
 
-  const essentialSurface = tab === 'today' || (tab === 'folder' && folderTab === 'plans');
+  const essentialSurface = tab === 'today' || tab === 'folder' || tab === 'week';
   return <div ref={shellRef} className={'app-shell essential-shell' + (essentialSurface ? ' essential-home' : '')}>{renderHeader()}{catalogLoading && !essentialSurface && <div className="app-main" style={{ paddingTop: 0 }}><p style={{ color: 'var(--muted)', fontSize: 11 }}>Sincronizando catálogo…</p></div>}{tab === 'today' && renderToday()}{tab === 'folder' && renderFolder()}{tab === 'week' && renderWeek()}{tab === 'data' && renderData()}{renderPlanModal()}{renderPickerModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{toast && <output className="toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</div>;
 }
