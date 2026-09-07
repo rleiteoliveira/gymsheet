@@ -1188,6 +1188,10 @@ export default function Home() {
   function renderSession() {
     if (!activeSession) return null;
     const currentExercise = activeSession.exercises.find((exercise) => exercise.id === activeExerciseId);
+    const orderedExercises = activeExerciseId
+      ? [...activeSession.exercises].sort((left, right) => Number(right.id === activeExerciseId) - Number(left.id === activeExerciseId))
+      : activeSession.exercises;
+    const sessionDate = capitalizeFirst(formatDateKeyLabel(localDateKey(activeSession.startedAt), { weekday: 'long' }));
     const isQuickSession = activeSession.sourcePlanId === null;
     const inProgress = activeSession.state === 'in_progress';
     const composing = Boolean(currentExercise && currentExercise.status !== 'skipped');
@@ -1202,6 +1206,7 @@ export default function Home() {
         <main className="essential-session-main">
           <header className="essential-session-header">
             <button className="essential-quiet" type="button" onClick={leaveSession}>Voltar</button>
+            <p className="essential-session-context">{sessionDate}</p>
             <h1 tabIndex={-1}>{activeSession.sourcePlanName ?? 'Sessão vazia'}</h1>
           </header>
 
@@ -1211,7 +1216,7 @@ export default function Home() {
             </div>
           ) : (
             <ul className="essential-session-list">
-              {activeSession.exercises.map((exercise) => {
+              {orderedExercises.map((exercise) => {
                 const display = exercise.performed ?? exercise.planned?.exercise;
                 const plannedName = exercise.planned?.exercise.name;
                 const isActive = activeExerciseId === exercise.id;
@@ -1284,7 +1289,7 @@ export default function Home() {
                               </>
                             )}
                             {inProgress && (
-                              <button className="essential-secondary" type="button" onClick={openAdd}>Adicionar</button>
+                              <button className="essential-secondary" type="button" onClick={openAdd}>Adicionar exercício</button>
                             )}
                             {exercise.status !== null && (
                               <button className="essential-quiet" type="button" onClick={() => undoExercise(exercise.id)}>Desfazer</button>
@@ -1326,17 +1331,17 @@ export default function Home() {
     if (!pendingSessionStart) return null;
     const previous = state.sessions.find((session) => session.id === pendingSessionStart.previousSessionId);
     if (!previous) return null;
+    const previousDate = formatDateKeyLabel(localDateKey(previous.startedAt), { weekday: 'long' });
     return (
-      <div className="essential-sheet-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPendingSessionStart(null); }}>
+      <div className="essential-sheet-backdrop" role="presentation">
         <dialog open className="essential-sheet" aria-modal="true" aria-labelledby="previous-session-modal-title">
           <div className="essential-sheet-head">
             <h2 id="previous-session-modal-title">Treino anterior ainda aberto</h2>
-            <button className="essential-quiet" type="button" onClick={() => setPendingSessionStart(null)}>Agora não</button>
           </div>
           <div className="essential-sheet-body">
-            <p className="essential-exercise-note">{previous.sourcePlanName ?? 'Sessão vazia'} · {formatDateTime(previous.startedAt)}</p>
-            <button className="essential-secondary" type="button" onClick={resumePreviousSession}>Retomar ontem</button>
-            <button className="essential-primary" type="button" onClick={completePreviousAndStartToday}>Encerrar ontem e começar hoje</button>
+            <p className="essential-exercise-note">{previous.sourcePlanName ?? 'Sessão vazia'} · {previousDate} · começou {formatDateTime(previous.startedAt)}. Escolha como continuar.</p>
+            <button className="essential-primary" type="button" onClick={resumePreviousSession}>Continuar treino de {previousDate}</button>
+            <button className="essential-secondary" type="button" onClick={completePreviousAndStartToday}>Encerrar treino de {previousDate} e começar hoje</button>
             <button className="essential-quiet" type="button" onClick={() => setPendingSessionStart(null)}>Agora não</button>
           </div>
         </dialog>

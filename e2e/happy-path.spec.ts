@@ -215,7 +215,11 @@ test('menu oferece cinco destinos, contém foco e fecha por teclado e clique ext
   expect(await readState(page)).toEqual(pinned);
 });
 
-for (const action of ['Agora não', 'Retomar ontem', 'Encerrar ontem e começar hoje']) {
+for (const action of [
+  'Agora não',
+  'Continuar treino de sábado, 5 de setembro',
+  'Encerrar treino de sábado, 5 de setembro e começar hoje',
+]) {
   test('sessão anterior exige decisão explícita: ' + action, async ({ page }) => {
     const previous = {
       ...createQuickSession('Ontem', yesterday, () => 'previous'),
@@ -232,14 +236,14 @@ for (const action of ['Agora não', 'Retomar ontem', 'Encerrar ontem e começar 
     expect(await readState(page)).toEqual(state);
     await dialog.getByRole('button', { name: action, exact: true }).last().click();
     await expect(dialog).toHaveCount(0);
-    if (action === 'Encerrar ontem e começar hoje') {
+    if (action === 'Encerrar treino de sábado, 5 de setembro e começar hoje') {
       await expect.poll(async () => (await readState(page)).sessions.length).toBe(2);
       const sessions = (await readState(page)).sessions;
       expect(sessions[0]).toEqual({ ...previous, state: 'completed', completedAt: now.toISOString() });
       expect(sessions[1]).toMatchObject({ sourcePlanId: plan.id, startedAt: now.toISOString(), state: 'in_progress' });
     } else {
       expect(await readState(page)).toEqual(state);
-      if (action === 'Retomar ontem') await expect(page.getByRole('heading', { name: 'Ontem', exact: true })).toBeVisible();
+      if (action === 'Continuar treino de sábado, 5 de setembro') await expect(page.getByRole('heading', { name: 'Ontem', exact: true })).toBeVisible();
       else await expect(page.getByTestId('start-workout')).toHaveText('Começar');
     }
   });
@@ -266,7 +270,7 @@ test('ficha: pular, trocar, adicionar, recarregar e finalizar o mesmo ID', async
   await page.getByLabel('Peso em quilogramas').fill('30');
   await page.getByLabel('Repetições', { exact: true }).fill('8');
   await page.getByTestId('quick-set-done').click();
-  await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
+  await page.getByRole('button', { name: 'Adicionar exercício', exact: true }).click();
   const addPicker = page.getByRole('dialog', { name: 'Adicionar na sessão' });
   await addPicker.locator('button.picker-item').nth(3).click();
   await page.getByLabel('Peso em quilogramas').fill('12');
