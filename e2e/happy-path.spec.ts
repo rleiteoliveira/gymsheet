@@ -84,6 +84,7 @@ test('começa livre, persiste série, recarrega, retoma o mesmo ID e conclui no 
   await launcher.click();
   await expect(page.getByRole('dialog', { name: 'Começar treino' })).toHaveCount(0);
   const picker = page.getByRole('dialog', { name: 'Adicionar na sessão' });
+  await expect(page.getByText(/nos últimos 30 dias/)).toHaveCount(0);
   await picker.locator('button.picker-item').first().click();
   await expect(page.locator('.session-clock, .progress-track, .status-chip')).toHaveCount(0);
   await page.getByLabel('Peso em quilogramas').fill('25');
@@ -120,6 +121,30 @@ test('começa livre, persiste série, recarrega, retoma o mesmo ID e conclui no 
   const afterRestart = await readState(page);
   expect(afterRestart.sessions[0]).toEqual(completed);
   expect(afterRestart.sessions).toHaveLength(2);
+});
+
+test('cria ficha pelo editor e picker, sem ranking visível', async ({ page }, info) => {
+  await openApp(page);
+  await goTo(page, 'Fichas');
+  await expect(page.getByRole('heading', { name: 'Fichas', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Fichas (0)' })).toHaveCount(0);
+  await capture(page, info, 'essencial-fichas-vazia');
+  await page.getByRole('button', { name: 'Nova ficha', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: 'Nova ficha', exact: true });
+  await editor.getByLabel('Nome da ficha').fill('Pernas');
+  await capture(page, info, 'essencial-editor-ficha');
+  await editor.getByRole('button', { name: 'Adicionar', exact: true }).click();
+  const planPicker = page.getByRole('dialog', { name: 'Adicionar à ficha' });
+  await expect(page.getByText(/nos últimos 30 dias/)).toHaveCount(0);
+  await capture(page, info, 'essencial-picker');
+  await planPicker.locator('button.picker-item').first().click();
+  await editor.getByRole('button', { name: 'Salvar ficha', exact: true }).click();
+  await expect.poll(async () => (await readState(page)).plans.map((item) => item.name)).toEqual(['Pernas']);
+  await expect(page.getByRole('heading', { name: 'Pernas', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Fixar Pernas', exact: true }).click();
+  await expect.poll(async () => (await readState(page)).todayPin).toEqual({ kind: 'plan', id: (await readState(page)).plans[0].id });
+  await capture(page, info, 'essencial-fichas-fixada');
+  expect((await readState(page)).sessions).toEqual([]);
 });
 
 test('nome abre Fichas e fixar permanece explícito, sem criar sessão', async ({ page }) => {
@@ -166,7 +191,7 @@ test('menu oferece cinco destinos, contém foco e fecha por teclado e clique ext
   await close.click();
   await expect(trigger).toBeFocused();
   for (const [destination, title] of [
-    ['Fichas', 'Fichas e sessões'], ['Histórico', 'Fichas e sessões'],
+    ['Fichas', 'Fichas'], ['Histórico', 'Histórico'],
     ['Calendário', 'O que aconteceu'], ['Dados e backup', 'Seu histórico é seu'], ['Treino', 'Peito'],
   ]) {
     await goTo(page, destination);

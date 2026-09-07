@@ -464,3 +464,303 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 @media (max-width: 420px) {
   .essential-composer-row { grid-template-columns: 1fr; }
 }
+
+/* Slice 27: Fichas, editor and picker only. */
+.essential-page,
+.essential-sheet,
+.essential-sheet-backdrop {
+    --essential-bg: #11120f;
+    --essential-surface: #191a16;
+    --essential-text: #f2f0e8;
+    --essential-muted: #a4a49a;
+    --essential-line: #30312c;
+    color: var(--essential-text);
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-variant-numeric: tabular-nums;
+}
+
+.essential-page {
+    width: min(100%, 560px);
+    margin: 0 auto;
+    padding: 24px 24px calc(32px + env(safe-area-inset-bottom));
+}
+
+.essential-page-title {
+    margin: 0;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 2rem;
+    font-weight: 400;
+    line-height: 1.25;
+}
+
+.essential-plan-list {
+    display: grid;
+    margin: 32px 0;
+    padding: 0;
+    list-style: none;
+}
+
+.essential-plan {
+    border-bottom: 1px solid var(--essential-line);
+    padding: 16px 0;
+}
+
+.essential-plan-copy h2 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.essential-plan-copy p {
+    margin: 4px 0 0;
+    color: var(--essential-muted);
+    font-size: .875rem;
+}
+
+.essential-plan-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.essential-page-empty {
+    margin-top: 48px;
+}
+
+.essential-primary,
+.essential-secondary,
+.essential-quiet {
+    min-height: 48px;
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+.essential-primary {
+    display: block;
+    width: 100%;
+    min-height: 52px;
+    border: 1px solid var(--essential-text);
+    color: var(--essential-bg);
+    background: var(--essential-text);
+    font-weight: 600;
+}
+
+.essential-primary:hover {
+    background: #e4e2d9;
+}
+
+.essential-secondary {
+    border: 1px solid var(--essential-line);
+    color: var(--essential-text);
+    background: transparent;
+    font-weight: 600;
+}
+
+.essential-page>.essential-secondary {
+    width: 100%;
+}
+
+.essential-quiet {
+    border: 0;
+    color: var(--essential-muted);
+    background: transparent;
+}
+
+.essential-sheet-backdrop {
+    position: fixed;
+    z-index: 50;
+    inset: 0;
+    display: grid;
+    align-items: end;
+    background: rgb(0 0 0 / 65%);
+}
+
+.essential-sheet {
+    width: min(100%, 560px);
+    max-height: min(88dvh, 760px);
+    overflow: auto;
+    margin: 0 auto;
+    border: 1px solid var(--essential-line);
+    border-bottom: 0;
+    border-radius: 10px 10px 0 0;
+    padding: 24px 24px calc(24px + env(safe-area-inset-bottom));
+    background: var(--essential-surface);
+}
+
+.essential-sheet-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.essential-sheet-head h2 {
+    margin: 0;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1.5rem;
+    font-weight: 400;
+}
+
+.essential-sheet-body {
+    display: grid;
+    gap: 16px;
+    margin-top: 24px;
+}
+
+.essential-field {
+    display: grid;
+    gap: 8px;
+    color: var(--essential-muted);
+    font-size: .875rem;
+}
+
+.essential-field .essential-input,
+.essential-editor-targets .essential-input {
+    padding-right: 16px;
+}
+
+.essential-sheet-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.essential-sheet-row h3 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.essential-editor-list {
+    display: grid;
+    gap: 16px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.essential-editor-item {
+    border-bottom: 1px solid var(--essential-line);
+    padding-bottom: 16px;
+}
+
+.essential-editor-name {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+}
+
+.essential-editor-name span {
+    color: var(--essential-muted);
+    font-size: .875rem;
+}
+
+.essential-editor-targets {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.essential-editor-targets label {
+    display: grid;
+    gap: 6px;
+    color: var(--essential-muted);
+    font-size: .75rem;
+}
+
+.essential-sheet-footer {
+    display: grid;
+    gap: 8px;
+}
+
+.essential-chips {
+    display: flex;
+    gap: 8px;
+    min-width: 0;
+    overflow-x: auto;
+    border: 0;
+    margin: 0;
+    padding: 0 0 4px;
+    scrollbar-width: none;
+}
+
+.essential-chips::-webkit-scrollbar {
+    display: none;
+}
+
+.essential-chip {
+    flex: 0 0 auto;
+    min-height: 48px;
+    border: 1px solid var(--essential-line);
+    border-radius: 999px;
+    padding: 0 16px;
+    color: var(--essential-muted);
+    background: transparent;
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+.essential-chip.active {
+    border-color: var(--essential-text);
+    color: var(--essential-bg);
+    background: var(--essential-text);
+}
+
+.essential-picker-list {
+    display: grid;
+    gap: 8px;
+}
+
+.essential-picker-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 48px;
+    border: 0;
+    border-bottom: 1px solid var(--essential-line);
+    padding: 12px 0;
+    color: inherit;
+    background: transparent;
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+}
+
+.essential-picker-item>span {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+.essential-picker-item span span {
+    color: var(--essential-muted);
+    font-size: .875rem;
+}
+
+.essential-page button:focus-visible,
+.essential-page h1:focus-visible,
+.essential-sheet button:focus-visible,
+.essential-sheet input:focus-visible,
+.essential-sheet h2:focus-visible {
+    outline: 2px solid var(--essential-text);
+    outline-offset: 4px;
+}
+
+@media (min-width: 640px) {
+    .essential-sheet-backdrop {
+        align-items: center;
+        padding: 20px;
+    }
+
+    .essential-sheet {
+        border-bottom: 1px solid var(--essential-line);
+        border-radius: 10px;
+        padding-bottom: 24px;
+    }
+}

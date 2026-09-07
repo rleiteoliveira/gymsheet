@@ -3,8 +3,6 @@
 import {
   Activity,
   AlertTriangle,
-  ArrowDown,
-  ArrowUp,
   CalendarDays,
   Check,
   ChevronDown,
@@ -19,18 +17,12 @@ import {
   FolderOpen,
   History,
   Info,
-  ListPlus,
   Menu,
-  Pin,
-  PinOff,
   Play,
   Plus,
   RefreshCw,
   RotateCcw,
-  Save,
-  Search,
   SkipForward,
-  Trash2,
   Upload,
   X,
 } from 'lucide-react';
@@ -613,12 +605,12 @@ export default function Home() {
       return;
     }
     mutate((current) => ({ ...current, todayPin: { kind: 'plan', id: planId } }));
-    notify('Ficha fixada em Hoje.');
+    notify('Ficha fixada.');
   }
 
   function clearPin() {
     mutate((current) => ({ ...current, todayPin: null }));
-    notify('Pin removido.');
+    notify('Ficha desafixada.');
   }
 
   function notifySessionChange(session: Session, currentDayMessage: string) {
@@ -1126,14 +1118,46 @@ export default function Home() {
   }
 
   function renderFolder() {
+    if (folderTab === 'sessions') {
+      return (
+        <main className="app-main">
+          <h1 className="page-title" tabIndex={-1}>Histórico</h1>
+          {state.sessions.length ? <div className="list">{[...state.sessions].sort((a, b) => b.startedAt.localeCompare(a.startedAt)).map((session) => <div className="list-card" key={session.id}><div className="list-card-main"><h3>{session.sourcePlanName ?? 'Sessão vazia'} {session.state === 'in_progress' && <span className="status-chip added">Em andamento</span>}</h3><p>{formatDateTime(session.startedAt)} · {session.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0)} séries</p></div>{session.state === 'in_progress' ? <button className="btn btn-primary btn-small" type="button" onClick={() => openSession(session.id)}><Play size={14} /> Retomar</button> : <CircleCheck size={20} color="var(--lime)" />}</div>)}</div> : <div className="surface empty"><div className="empty-icon"><History size={24} /></div><h2>Nenhuma sessão ainda</h2><p>Quando você registrar sua primeira série, ela aparece aqui.</p><button className="btn btn-primary" type="button" onClick={() => startSession()}><Play size={18} /> Começar sessão vazia</button></div>}
+        </main>
+      );
+    }
+
     return (
-      <main className="app-main">
-        <section><p className="eyebrow">Fichas</p><h1 className="page-title" tabIndex={-1}>Fichas e sessões</h1><p className="page-lede">Planeje antes. Guarde o que realmente aconteceu.</p></section>
-        <div className="tabs"><button className={`tab ${folderTab === 'plans' ? 'active' : ''}`} type="button" onClick={() => setFolderTab('plans')}>Fichas ({state.plans.length})</button><button className={`tab ${folderTab === 'sessions' ? 'active' : ''}`} type="button" onClick={() => setFolderTab('sessions')}>Sessões ({state.sessions.length})</button></div>
-        {folderTab === 'plans' ? (
-          state.plans.length ? <div className="list">{state.plans.map((plan) => <div className="list-card" key={plan.id}><div className="list-card-main"><h3>{plan.emoji ? `${plan.emoji} ` : ''}{plan.name}</h3><p>{plan.exercises.length} exercícios · {state.todayPin?.kind === 'plan' && state.todayPin.id === plan.id ? 'pinada hoje' : `atualizada ${formatDate(plan.updatedAt)}`}</p></div><div className="list-card-actions"><button className="btn btn-secondary btn-small" type="button" onClick={() => openPlanEditor(plan)} aria-label={`Editar ${plan.name}`}>Editar</button>{state.todayPin?.kind === 'plan' && state.todayPin.id === plan.id ? <button className="btn btn-quiet btn-small" type="button" onClick={clearPin}><PinOff size={14} /></button> : <button className="btn btn-secondary btn-small" type="button" onClick={() => pinPlan(plan.id)} aria-label={`Fixar ${plan.name}`}><Pin size={14} /></button>}<button className="btn btn-danger btn-small" type="button" onClick={() => deletePlan(plan.id)} aria-label={`Excluir ${plan.name}`}><Trash2 size={14} /></button></div></div>)}</div> : <div className="surface empty"><div className="empty-icon"><FolderOpen size={24} /></div><h2>A pasta está vazia</h2><p>Crie uma ficha com seus exercícios e alvos de séries.</p><button className="btn btn-primary" type="button" onClick={() => openPlanEditor()}><Plus size={18} /> Criar primeira ficha</button></div>
+      <main className="essential-page">
+        <h1 className="essential-page-title" tabIndex={-1}>Fichas</h1>
+        {state.plans.length ? (
+          <>
+            <ul className="essential-plan-list">
+              {state.plans.map((plan) => {
+                const pinned = state.todayPin?.kind === 'plan' && state.todayPin.id === plan.id;
+                return (
+                  <li className="essential-plan" key={plan.id}>
+                    <div className="essential-plan-copy">
+                      <h2>{plan.emoji ? `${plan.emoji} ` : ''}{plan.name}</h2>
+                      <p>{plan.exercises.length} {plan.exercises.length === 1 ? 'exercício' : 'exercícios'}{pinned ? ' · em uso hoje' : ''}</p>
+                    </div>
+                    <div className="essential-plan-actions">
+                      <button className="essential-quiet" type="button" onClick={() => openPlanEditor(plan)} aria-label={`Editar ${plan.name}`}>Editar</button>
+                      {pinned
+                        ? <button className="essential-quiet" type="button" onClick={clearPin} aria-label={`Desafixar ${plan.name}`}>Desafixar</button>
+                        : <button className="essential-quiet" type="button" onClick={() => pinPlan(plan.id)} aria-label={`Fixar ${plan.name}`}>Fixar</button>}
+                      <button className="essential-quiet" type="button" onClick={() => deletePlan(plan.id)} aria-label={`Excluir ${plan.name}`}>Excluir</button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            <button className="essential-secondary" type="button" onClick={() => openPlanEditor()}>Nova ficha</button>
+          </>
         ) : (
-          state.sessions.length ? <div className="list">{[...state.sessions].sort((a, b) => b.startedAt.localeCompare(a.startedAt)).map((session) => <div className="list-card" key={session.id}><div className="list-card-main"><h3>{session.sourcePlanName ?? 'Sessão vazia'} {session.state === 'in_progress' && <span className="status-chip added">Em andamento</span>}</h3><p>{formatDateTime(session.startedAt)} · {session.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0)} séries</p></div>{session.state === 'in_progress' ? <button className="btn btn-primary btn-small" type="button" onClick={() => openSession(session.id)}><Play size={14} /> Retomar</button> : <CircleCheck size={20} color="var(--lime)" />}</div>)}</div> : <div className="surface empty"><div className="empty-icon"><History size={24} /></div><h2>Nenhuma sessão ainda</h2><p>Quando você registrar sua primeira série, ela aparece aqui.</p><button className="btn btn-primary" type="button" onClick={() => startSession()}><Play size={18} /> Começar sessão vazia</button></div>
+          <div className="essential-page-empty">
+            <button className="essential-primary" type="button" onClick={() => openPlanEditor()}>Nova ficha</button>
+          </div>
         )}
       </main>
     );
@@ -1395,36 +1419,90 @@ export default function Home() {
 
   function renderPlanModal() {
     if (modal !== 'plan' || !draft) return null;
-    return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setModal(null); setDraft(null); } }}><dialog open className="modal" aria-modal="true" aria-labelledby="plan-modal-title"><div className="modal-head"><div><h2 id="plan-modal-title">{draft.id ? 'Editar ficha' : 'Nova ficha'}</h2><p>Defina o alvo. O que acontecer fica na sessão.</p></div><button className="btn btn-quiet btn-icon" type="button" onClick={() => { setModal(null); setDraft(null); }} aria-label="Fechar"><X size={20} /></button></div><div className="editor"><div className="form-field"><label htmlFor="plan-name">Nome da ficha</label><input id="plan-name" className="text-input" type="text" placeholder="Ex.: Pernas + core" value={draft.name} onChange={(event) => setDraft((current) => current ? { ...current, name: event.target.value } : current)} /></div><div className="form-field"><label htmlFor="plan-emoji">Emoji (opcional)</label><input id="plan-emoji" className="text-input emoji-input" type="text" maxLength={8} placeholder="Ex.: 🦵" value={draft.emoji} onChange={(event) => setDraft((current) => current ? { ...current, emoji: event.target.value } : current)} /><span className="field-hint">Use um único emoji para reconhecer a ficha de relance.</span></div><div className="section-heading" style={{ margin: '5px 0 0' }}><h2>Exercícios</h2><button className="btn btn-secondary btn-small" type="button" onClick={() => openPicker('plan')}><Plus size={15} /> Adicionar</button></div>{draft.exercises.length ? <div className="list">{draft.exercises.map((exercise, index) => <div className="editor-exercise" key={exercise.id}><span>{index + 1}</span><div className="editor-exercise-name"><strong>{exercise.exercise.name}</strong><span>{localizeMuscle(exercise.exercise.primaryMuscles[0])} · {localizeEquipment(exercise.exercise.equipment)}</span></div><input className="mini-input" type="number" min="1" max="30" value={exercise.targetSets} aria-label={`Séries de ${exercise.exercise.name}`} onChange={(event) => updateDraftExercise(exercise.id, 'targetSets', event.target.value)} /><input className="mini-input" type="number" min="1" max="999" value={exercise.targetReps} aria-label={`Reps de ${exercise.exercise.name}`} onChange={(event) => updateDraftExercise(exercise.id, 'targetReps', event.target.value)} /><input className="mini-input" type="text" inputMode="decimal" placeholder="kg" value={exercise.targetKg ?? ''} aria-label={`Peso de ${exercise.exercise.name}`} onChange={(event) => updateDraftExercise(exercise.id, 'targetKg', event.target.value)} /><div style={{ display: 'grid', gap: 3 }}><button className="icon-button" type="button" onClick={() => moveDraftExercise(index, -1)} aria-label="Mover para cima" disabled={index === 0}><ArrowUp size={14} /></button><button className="icon-button" type="button" onClick={() => moveDraftExercise(index, 1)} aria-label="Mover para baixo" disabled={index === draft.exercises.length - 1}><ArrowDown size={14} /></button></div><button className="icon-button" type="button" onClick={() => setDraft((current) => current ? { ...current, exercises: current.exercises.filter((item) => item.id !== exercise.id).map((item, order) => ({ ...item, order })) } : current)} aria-label={`Remover ${exercise.exercise.name}`}><Trash2 size={14} /></button></div>)}</div> : <div className="surface empty" style={{ padding: '20px 14px' }}><ListPlus size={22} color="var(--lime)" style={{ marginBottom: 8 }} /><p style={{ margin: 0 }}>Adicione exercícios do catálogo.</p></div>}<div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}><button className="btn btn-quiet" type="button" onClick={() => { setModal(null); setDraft(null); }}>Cancelar</button><button className="btn btn-primary" type="button" onClick={savePlan}><Save size={16} /> Salvar ficha</button></div></div></dialog></div>;
+    const closeEditor = () => {
+      setModal(null);
+      setDraft(null);
+    };
+    return (
+      <div className="essential-sheet-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeEditor(); }}>
+        <dialog open className="essential-sheet" aria-modal="true" aria-labelledby="plan-modal-title">
+          <div className="essential-sheet-head">
+            <h2 id="plan-modal-title">{draft.id ? 'Editar ficha' : 'Nova ficha'}</h2>
+            <button className="essential-quiet" type="button" onClick={closeEditor} aria-label="Fechar">Fechar</button>
+          </div>
+          <div className="essential-sheet-body">
+            <label className="essential-field" htmlFor="plan-name">Nome da ficha
+              <input id="plan-name" className="essential-input" type="text" value={draft.name} onChange={(event) => setDraft((current) => current ? { ...current, name: event.target.value } : current)} />
+            </label>
+            <label className="essential-field" htmlFor="plan-emoji">Emoji (opcional)
+              <input id="plan-emoji" className="essential-input" type="text" maxLength={8} value={draft.emoji} onChange={(event) => setDraft((current) => current ? { ...current, emoji: event.target.value } : current)} />
+            </label>
+            <div className="essential-sheet-row">
+              <h3>Exercícios</h3>
+              <button className="essential-secondary" type="button" onClick={() => openPicker('plan')}>Adicionar</button>
+            </div>
+            {draft.exercises.length ? (
+              <ul className="essential-editor-list">
+                {draft.exercises.map((exercise, index) => (
+                  <li className="essential-editor-item" key={exercise.id}>
+                    <p className="essential-editor-name"><strong>{index + 1}. {exercise.exercise.name}</strong><span>{localizeMuscle(exercise.exercise.primaryMuscles[0])} · {localizeEquipment(exercise.exercise.equipment)}</span></p>
+                    <div className="essential-editor-targets">
+                      <label>Séries<input className="essential-input" type="number" min={1} max={30} value={exercise.targetSets} aria-label={`Séries de ${exercise.exercise.name}`} onChange={(event) => updateDraftExercise(exercise.id, 'targetSets', event.target.value)} /></label>
+                      <label>Reps<input className="essential-input" type="number" min={1} max={999} value={exercise.targetReps} aria-label={`Reps de ${exercise.exercise.name}`} onChange={(event) => updateDraftExercise(exercise.id, 'targetReps', event.target.value)} /></label>
+                      <label>kg<input className="essential-input" type="text" inputMode="decimal" value={exercise.targetKg ?? ''} aria-label={`Peso de ${exercise.exercise.name}`} onChange={(event) => updateDraftExercise(exercise.id, 'targetKg', event.target.value)} /></label>
+                    </div>
+                    <div className="essential-plan-actions">
+                      <button className="essential-quiet" type="button" onClick={() => moveDraftExercise(index, -1)} aria-label={`Mover ${exercise.exercise.name} para cima`} disabled={index === 0}>Subir</button>
+                      <button className="essential-quiet" type="button" onClick={() => moveDraftExercise(index, 1)} aria-label={`Mover ${exercise.exercise.name} para baixo`} disabled={index === draft.exercises.length - 1}>Descer</button>
+                      <button className="essential-quiet" type="button" onClick={() => setDraft((current) => current ? { ...current, exercises: current.exercises.filter((item) => item.id !== exercise.id).map((item, order) => ({ ...item, order })) } : current)} aria-label={`Remover ${exercise.exercise.name}`}>Remover</button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="essential-exercise-note">Adicione um exercício do catálogo.</p>
+            )}
+            <div className="essential-sheet-footer">
+              <button className="essential-primary" type="button" onClick={savePlan}>Salvar ficha</button>
+              <button className="essential-quiet" type="button" onClick={closeEditor}>Cancelar</button>
+            </div>
+          </div>
+        </dialog>
+      </div>
+    );
   }
 
   function renderPickerModal() {
     if (modal !== 'picker') return null;
     const title = pickerMode === 'plan' ? 'Adicionar à ficha' : pickerMode === 'swap' ? 'Trocar exercício' : 'Adicionar na sessão';
-    const showingAllMatches = filteredPicker.length < pickerMatches.length;
     return (
-      <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setModal(null); }}>
-        <dialog open className="modal" aria-modal="true" aria-labelledby="picker-modal-title">
-          <div className="modal-head">
-            <div>
-              <h2 id="picker-modal-title">{title}</h2>
-              <p>Pesquise pelo nome, músculo ou equipamento.</p>
-            </div>
-            <button className="btn btn-quiet btn-icon" type="button" onClick={() => setModal(null)} aria-label="Fechar"><X size={20} /></button>
+      <div className="essential-sheet-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setModal(null); }}>
+        <dialog open className="essential-sheet" aria-modal="true" aria-labelledby="picker-modal-title">
+          <div className="essential-sheet-head">
+            <h2 id="picker-modal-title">{title}</h2>
+            <button className="essential-quiet" type="button" onClick={() => setModal(null)} aria-label="Fechar">Fechar</button>
           </div>
-          <div className="search-row">
-            <Search size={19} color="var(--muted)" style={{ margin: 14 }} />
-            <input autoFocus className="text-input" type="search" placeholder="Buscar exercício" value={pickerSearch} onChange={(event) => setPickerSearch(event.target.value)} />
-          </div>
-          <div className="picker-filter" aria-label="Filtrar por grupo muscular">
-            <div className="picker-filter-head"><span>Grupo muscular</span>{pickerMuscleGroups.length > 0 && <button className="btn btn-quiet btn-small" type="button" onClick={() => setPickerMuscleGroups([])}>Limpar</button>}</div>
-            <fieldset className="muscle-chips" aria-label="Grupos musculares">
-              <button className={`muscle-chip ${pickerMuscleGroups.length === 0 ? 'active' : ''}`} type="button" aria-pressed={pickerMuscleGroups.length === 0} onClick={() => setPickerMuscleGroups([])}>Todos</button>
-              {pickerMuscleOptions.map((group) => <button className={`muscle-chip ${pickerMuscleGroups.includes(group.id) ? 'active' : ''}`} type="button" key={group.id} aria-pressed={pickerMuscleGroups.includes(group.id)} onClick={() => togglePickerMuscle(group.id)}>{group.label}</button>)}
+          <div className="essential-sheet-body">
+            <label className="essential-field" htmlFor="picker-search">Buscar
+              <input id="picker-search" autoFocus className="essential-input" type="search" value={pickerSearch} onChange={(event) => setPickerSearch(event.target.value)} />
+            </label>
+            <fieldset className="essential-chips" aria-label="Grupos musculares">
+              <button className={pickerMuscleGroups.length === 0 ? 'essential-chip active' : 'essential-chip'} type="button" aria-pressed={pickerMuscleGroups.length === 0} onClick={() => setPickerMuscleGroups([])}>Todos</button>
+              {pickerMuscleOptions.map((group) => (
+                <button className={pickerMuscleGroups.includes(group.id) ? 'essential-chip active' : 'essential-chip'} type="button" key={group.id} aria-pressed={pickerMuscleGroups.includes(group.id)} onClick={() => togglePickerMuscle(group.id)}>{group.label}</button>
+              ))}
             </fieldset>
+            <p className="essential-exercise-note" aria-live="polite">{pickerMatches.length} {pickerMatches.length === 1 ? 'exercício' : 'exercícios'}</p>
+            <div className="essential-picker-list">
+              {filteredPicker.map((exercise) => (
+                <button className="essential-picker-item picker-item" type="button" key={exercise.id} onClick={() => handleCatalogPick(exercise)}>
+                  <ExerciseImage src={exercise.images[0]} alt={exercise.name} />
+                  <span><strong>{exercise.name}</strong><span>{localizeMuscle(exercise.primaryMuscles[0])} · {localizeEquipment(exercise.equipment)}</span></span>
+                </button>
+              ))}
+              {filteredPicker.length === 0 && <p className="essential-exercise-note">Nenhum exercício encontrado.</p>}
+            </div>
           </div>
-          <p className="picker-count" aria-live="polite">{pickerMatches.length} exercício{pickerMatches.length === 1 ? '' : 's'} encontrado{pickerMatches.length === 1 ? '' : 's'}{showingAllMatches ? ' · refine a busca para ver menos' : ''}</p>
-          <div className="picker-list">{filteredPicker.map((exercise) => { const favorite = favoriteScores.get(exercise.id); return <button className="picker-item" type="button" key={exercise.id} onClick={() => handleCatalogPick(exercise)}><ExerciseImage src={exercise.images[0]} alt={exercise.name} /><div><strong>{exercise.name}</strong><span>{favorite ? `${favorite.count}× nos últimos 30 dias · ` : ''}{localizeMuscle(exercise.primaryMuscles[0])} · {localizeEquipment(exercise.equipment)}</span></div><ChevronRight size={17} color="var(--muted)" /></button>; })}{filteredPicker.length === 0 && <div className="empty"><Search size={24} color="var(--muted)" /><p>Nenhum exercício encontrado.</p></div>}</div>
         </dialog>
       </div>
     );
@@ -1436,5 +1514,6 @@ export default function Home() {
 
   if (sessionViewId) return <>{renderSession()}{renderPlanModal()}{renderPickerModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{toast && <output className="toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</>;
 
-  return <div ref={shellRef} className={'app-shell essential-shell' + (tab === 'today' ? ' essential-home' : '')}>{renderHeader()}{catalogLoading && <div className="app-main" style={{ paddingTop: 0 }}><p style={{ color: 'var(--muted)', fontSize: 11 }}>Sincronizando catálogo…</p></div>}{tab === 'today' && renderToday()}{tab === 'folder' && renderFolder()}{tab === 'week' && renderWeek()}{tab === 'data' && renderData()}{renderPlanModal()}{renderPickerModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{toast && <output className="toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</div>;
+  const essentialSurface = tab === 'today' || (tab === 'folder' && folderTab === 'plans');
+  return <div ref={shellRef} className={'app-shell essential-shell' + (essentialSurface ? ' essential-home' : '')}>{renderHeader()}{catalogLoading && !essentialSurface && <div className="app-main" style={{ paddingTop: 0 }}><p style={{ color: 'var(--muted)', fontSize: 11 }}>Sincronizando catálogo…</p></div>}{tab === 'today' && renderToday()}{tab === 'folder' && renderFolder()}{tab === 'week' && renderWeek()}{tab === 'data' && renderData()}{renderPlanModal()}{renderPickerModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{toast && <output className="toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</div>;
 }
