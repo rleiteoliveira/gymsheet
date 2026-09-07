@@ -10,11 +10,11 @@ Evidência de origem: auditoria de produção em 07/09/2026, viewport 390 × 844
 
 ## Faz
 
-- [ ] Corrigir a decisão de sessão aberta: usar data civil explícita em vez de “ontem” (`Continuar treino de DD/MM` e `Encerrar e começar hoje`), manter uma única saída `Agora não` e dar a `Continuar` a primeira posição visual.
-- [ ] Reordenar a sessão para destacar o exercício ativo e a série atual antes do nome/data da sessão; séries salvas permanecem compactas e os outros exercícios continuam selecionáveis sem abrir cartões decorativos.
-- [ ] Formar um único bloco operacional com `kg`, `reps` e **Salvar série**; conservar preenchimento e validação existentes. Renomear toda ação curta `Adicionar` dessa superfície para **Adicionar exercício**.
-- [ ] Consolidar os tokens essenciais já repetidos em `globals.css`: carvão `#11120f`, superfície `#191a16`, marfim `#f2f0e8`, muted `#a4a49a`, linha `#30312c`; serifada apenas em marca, e sans-serif em títulos e operações. Preservar alvos de toque de pelo menos 48 px e foco visível.
-- [ ] Estender o E2E para provar o percurso em 390 × 844: começar, resolver sessão antiga com data explícita, escolher exercício, salvar duas séries, trocar de exercício, adicionar exercício, sair/recarregar/retomar o mesmo ID e finalizar.
+- [x] Corrigir a decisão de sessão aberta: usar data civil explícita em vez de “ontem” (`Continuar treino de sábado, 5 de setembro` e `Encerrar treino de sábado, 5 de setembro e começar hoje`), manter uma única saída `Agora não` e dar a `Continuar` a primeira posição visual.
+- [x] Reordenar a sessão para destacar o exercício ativo e a série atual antes do nome/data da sessão; séries salvas permanecem compactas e os outros exercícios continuam selecionáveis sem abrir cartões decorativos.
+- [x] Formar um único bloco operacional com `kg`, `reps` e **Salvar série**; conservar preenchimento e validação existentes. Renomear toda ação curta `Adicionar` dessa superfície para **Adicionar exercício**.
+- [x] Consolidar os tokens essenciais já repetidos em `globals.css`: carvão `#11120f`, superfície `#191a16`, marfim `#f2f0e8`, muted `#a4a49a`, linha `#30312c`; serifada apenas em marca, e sans-serif em títulos e operações. Preservar alvos de toque de pelo menos 48 px e foco visível.
+- [x] Estender o E2E para provar o percurso em 390 × 844: começar, resolver sessão antiga com data explícita, escolher exercício, salvar duas séries, trocar de exercício, adicionar exercício, sair/recarregar/retomar o mesmo ID e finalizar.
 
 ## Não faz
 
