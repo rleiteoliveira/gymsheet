@@ -45,7 +45,7 @@ import type {
 type Tab = 'today' | 'folder' | 'week' | 'data';
 type FolderTab = 'plans' | 'sessions';
 type PickerMode = 'plan' | 'swap' | 'add';
-type Modal = 'plan' | 'picker' | null;
+type Modal = 'workout' | 'plan' | 'picker' | null;
 
 interface PlanDraft {
   id?: string;
@@ -257,6 +257,8 @@ export default function Home() {
   const focusDestinationRef = useRef(false);
   const [startMotion, setStartMotion] = useState<'idle' | 'queued' | 'entering'>('idle');
   const [pendingStartAction, setPendingStartAction] = useState<(() => void) | null>(null);
+  const [savedExerciseId, setSavedExerciseId] = useState<string | null>(null);
+  const [exerciseTransitionId, setExerciseTransitionId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!navigationVersion) return;
@@ -420,6 +422,18 @@ export default function Home() {
   }, [toast]);
 
   useEffect(() => {
+    if (!savedExerciseId) return undefined;
+    const timer = window.setTimeout(() => setSavedExerciseId(null), 1200);
+    return () => window.clearTimeout(timer);
+  }, [savedExerciseId]);
+
+  useEffect(() => {
+    if (!exerciseTransitionId) return undefined;
+    const timer = window.setTimeout(() => setExerciseTransitionId(null), 220);
+    return () => window.clearTimeout(timer);
+  }, [exerciseTransitionId]);
+
+  useEffect(() => {
     if (startMotion !== 'queued' || !pendingStartAction) return undefined;
     const timer = window.setTimeout(() => {
       pendingStartAction();
@@ -465,6 +479,16 @@ export default function Home() {
     setPickerSearch('');
     setPickerMuscleGroups([]);
     setModal('picker');
+  }
+
+  function openWorkoutPicker() {
+    setModal('workout');
+  }
+
+  function chooseWorkout(plan?: Plan) {
+    mutate((current) => ({ ...current, todayPin: plan ? { kind: 'plan', id: plan.id } : null }));
+    setModal(null);
+    notify(plan ? `${plan.name} escolhido para hoje.` : 'Treino livre escolhido.');
   }
 
   function enterSession(session: Session) {
@@ -663,6 +687,7 @@ export default function Home() {
 
   function selectExerciseForRegister(exercise: SessionExercise) {
     setActiveExerciseId(exercise.id);
+    setExerciseTransitionId(exercise.id);
     const lastSet = exercise.sets.at(-1);
     const target = exercise.planned;
     setComposerKg(lastSet ? (lastSet.kg === null ? '' : String(lastSet.kg).replace('.', ',')) : target?.targetKg == null ? '' : String(target.targetKg).replace('.', ','));
@@ -695,6 +720,7 @@ export default function Home() {
         return applySessionEdit(session, { type: 'save-set', exerciseId: activeExerciseId, set });
       }),
     }));
+    setSavedExerciseId(activeExerciseId);
     notifySessionChange(activeSession, 'Série salva.');
   }
 
@@ -1033,8 +1059,8 @@ export default function Home() {
               <button
                 type="button"
                 className="essential-selector"
-                aria-label={'Escolher ficha: ' + workoutName}
-                onClick={() => navigate('folder', 'plans')}
+                aria-label={'Escolher treino: ' + workoutName}
+                onClick={openWorkoutPicker}
               >
                 <span>{workoutName}</span><ChevronDown size={24} aria-hidden="true" />
               </button>
@@ -1226,14 +1252,12 @@ export default function Home() {
 
   function renderSession() {
     if (!activeSession) return null;
-    const currentExercise = activeSession.exercises.find((exercise) => exercise.id === activeExerciseId);
     const orderedExercises = activeExerciseId
       ? [...activeSession.exercises].sort((left, right) => Number(right.id === activeExerciseId) - Number(left.id === activeExerciseId))
       : activeSession.exercises;
     const sessionDate = capitalizeFirst(formatDateKeyLabel(localDateKey(activeSession.startedAt), { weekday: 'long' }));
     const isQuickSession = activeSession.sourcePlanId === null;
     const inProgress = activeSession.state === 'in_progress';
-    const composing = Boolean(currentExercise && currentExercise.status !== 'skipped');
     const openAdd = isQuickSession ? openQuickExercisePicker : () => openPicker('add');
     const leaveSession = () => {
       setSessionViewId(null);
@@ -1254,106 +1278,124 @@ export default function Home() {
               <button className="essential-primary" type="button" onClick={openAdd}>Adicionar exercício</button>
             </div>
           ) : (
-            <ul className="essential-session-list">
-              {orderedExercises.map((exercise) => {
-                const display = exercise.performed ?? exercise.planned?.exercise;
-                const plannedName = exercise.planned?.exercise.name;
-                const isActive = activeExerciseId === exercise.id;
-                return (
-                  <li key={exercise.id}>
-                    <article className={isActive ? 'essential-exercise active' : 'essential-exercise'}>
-                      <button className="essential-exercise-select" type="button" onClick={() => selectExerciseForRegister(exercise)}>
-                        <span className="essential-exercise-index">{exercise.order + 1}</span>
-                        <span className="essential-exercise-name">{display?.name ?? 'Exercício pendente'}</span>
-                      </button>
-                      {exercise.status === 'swapped' && plannedName && plannedName !== display?.name && (
-                        <p className="essential-exercise-note">Planejado: {plannedName}</p>
-                      )}
-                      {exercise.sets.length > 0 && (
-                        <ul className="essential-set-list">
-                          {exercise.sets.map((set) => (
-                            <li className="essential-set-row" key={set.id}>
-                              <span>Série {set.index}</span>
-                              <strong>{formatKg(set.kg)} · {set.reps} reps</strong>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                      {isActive && (
-                        <>
-                          {exercise.status !== 'skipped' && (
-                            <div className="essential-composer">
-                              <p className="essential-composer-label">Série {exercise.sets.length + 1}</p>
-                              <div className="essential-composer-row">
-                                <label className="essential-input-wrap">
-                                  <input
-                                    id="composer-kg"
-                                    className="essential-input"
-                                    inputMode="decimal"
-                                    type="text"
-                                    placeholder={isQuickSession ? 'opcional' : '0'}
-                                    value={composerKg}
-                                    onChange={(event) => setComposerKg(event.target.value)}
-                                    onFocus={(event) => event.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
-                                    aria-label="Peso em quilogramas"
-                                  />
-                                  <span>kg</span>
-                                </label>
-                                <label className="essential-input-wrap">
-                                  <input
-                                    id="composer-reps"
-                                    className="essential-input"
-                                    inputMode="numeric"
-                                    type="number"
-                                    min={isQuickSession ? 0 : 1}
-                                    max={999}
-                                    placeholder={isQuickSession ? 'opcional' : '10'}
-                                    value={composerReps}
-                                    onChange={(event) => setComposerReps(event.target.value)}
-                                    onKeyDown={(event) => { if (event.key === 'Enter') saveSet(); }}
-                                    onFocus={(event) => event.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
-                                    aria-label="Repetições"
-                                  />
-                                  <span>reps</span>
-                                </label>
+            <>
+              <ul className="essential-session-list">
+                {orderedExercises.map((exercise) => {
+                  const display = exercise.performed ?? exercise.planned?.exercise;
+                  const plannedName = exercise.planned?.exercise.name;
+                  const isActive = activeExerciseId === exercise.id;
+                  const setLabel = exercise.sets.length === 1 ? '1 série' : `${exercise.sets.length} séries`;
+                  return (
+                    <li key={exercise.id}>
+                      <article
+                        className={isActive ? 'essential-exercise active' : 'essential-exercise'}
+                        data-transition={isActive && exerciseTransitionId === exercise.id ? 'true' : undefined}
+                      >
+                        <button
+                          className="essential-exercise-select"
+                          type="button"
+                          aria-expanded={isActive}
+                          aria-label={`${display?.name ?? 'Exercício pendente'}${exercise.sets.length ? `, ${setLabel}` : ''}`}
+                          onClick={() => selectExerciseForRegister(exercise)}
+                        >
+                          <span className="essential-exercise-index">{exercise.order + 1}</span>
+                          <span className="essential-exercise-name">{display?.name ?? 'Exercício pendente'}</span>
+                          <span className="essential-exercise-meta">{exercise.status === 'skipped' ? 'pulado' : setLabel}</span>
+                        </button>
+                        {isActive && exercise.status === 'swapped' && plannedName && plannedName !== display?.name && (
+                          <p className="essential-exercise-note">Planejado: {plannedName}</p>
+                        )}
+                        {isActive && (
+                          <>
+                            {exercise.sets.length > 0 && (
+                              <ul className="essential-set-list">
+                                {exercise.sets.map((set) => (
+                                  <li className="essential-set-row" key={set.id}>
+                                    <span>Série {set.index}</span>
+                                    <strong>{formatKg(set.kg)} · {set.reps} reps</strong>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                            {exercise.status !== 'skipped' && (
+                              <div className="essential-composer">
+                                <p className="essential-composer-label">Série {exercise.sets.length + 1}</p>
+                                <div className="essential-composer-row">
+                                  <label className="essential-input-wrap">
+                                    <input
+                                      id="composer-kg"
+                                      className="essential-input"
+                                      inputMode="decimal"
+                                      type="text"
+                                      placeholder={isQuickSession ? 'opcional' : '0'}
+                                      value={composerKg}
+                                      onChange={(event) => setComposerKg(event.target.value)}
+                                      onFocus={(event) => event.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+                                      aria-label="Peso em quilogramas"
+                                    />
+                                    <span>kg</span>
+                                  </label>
+                                  <label className="essential-input-wrap">
+                                    <input
+                                      id="composer-reps"
+                                      className="essential-input"
+                                      inputMode="numeric"
+                                      type="number"
+                                      min={isQuickSession ? 0 : 1}
+                                      max={999}
+                                      placeholder={isQuickSession ? 'opcional' : '10'}
+                                      value={composerReps}
+                                      onChange={(event) => setComposerReps(event.target.value)}
+                                      onKeyDown={(event) => { if (event.key === 'Enter') saveSet(); }}
+                                      onFocus={(event) => event.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+                                      aria-label="Repetições"
+                                    />
+                                    <span>reps</span>
+                                  </label>
+                                </div>
+                                <button className="essential-primary" type="button" data-testid="quick-set-done" onClick={saveSet}>Salvar série</button>
+                                {savedExerciseId === exercise.id && <output className="essential-save-feedback" aria-live="polite">Série salva</output>}
                               </div>
-                              <button className="essential-primary" type="button" data-testid="quick-set-done" onClick={saveSet}>Salvar série</button>
-                            </div>
-                          )}
-                          <div className="essential-exercise-actions">
-                            {exercise.status === null && exercise.planned && (
-                              <>
-                                <button className="essential-secondary" type="button" onClick={() => markSkipped(exercise.id)}>Pular</button>
-                                <button className="essential-secondary" type="button" onClick={() => openPicker('swap', exercise.id)}>Trocar</button>
-                              </>
                             )}
-                            {inProgress && (
-                              <button className="essential-secondary" type="button" onClick={openAdd}>Adicionar exercício</button>
-                            )}
-                            {exercise.status !== null && (
-                              <button className="essential-quiet" type="button" onClick={() => undoExercise(exercise.id)}>Desfazer</button>
-                            )}
-                          </div>
-                        </>
-                      )}
-                    </article>
-                  </li>
-                );
-              })}
-            </ul>
+                            <details className="essential-actions-disclosure">
+                              <summary>Ações do exercício</summary>
+                              <div className="essential-exercise-actions">
+                                {exercise.status === null && exercise.planned && (
+                                  <>
+                                    <button className="essential-secondary" type="button" onClick={() => markSkipped(exercise.id)}>Pular</button>
+                                    <button className="essential-secondary" type="button" onClick={() => openPicker('swap', exercise.id)}>Trocar</button>
+                                  </>
+                                )}
+                                {exercise.status !== null && (
+                                  <button className="essential-quiet" type="button" onClick={() => undoExercise(exercise.id)}>Desfazer</button>
+                                )}
+                              </div>
+                            </details>
+                          </>
+                        )}
+                      </article>
+                    </li>
+                  );
+                })}
+              </ul>
+              {inProgress && <button className="essential-secondary essential-add-exercise" type="button" onClick={openAdd}>Adicionar exercício</button>}
+            </>
           )}
 
           {inProgress ? (
             <div className="essential-session-footer">
               <button
-                className={composing || activeSession.exercises.length === 0 ? 'essential-secondary' : 'essential-primary'}
+                className="essential-secondary"
                 type="button"
                 data-testid="finish-workout"
                 onClick={finishSession}
               >
                 Finalizar
               </button>
-              <button className="essential-quiet" type="button" onClick={() => discardSession()}>Descartar</button>
+              <details className="essential-actions-disclosure essential-session-actions">
+                <summary>Ações da sessão</summary>
+                <button className="essential-quiet" type="button" onClick={() => discardSession()}>Descartar</button>
+              </details>
             </div>
           ) : (
             <div className="essential-session-footer">
@@ -1382,6 +1424,34 @@ export default function Home() {
             <button className="essential-primary" type="button" onClick={resumePreviousSession}>Continuar treino de {previousDate}</button>
             <button className="essential-secondary" type="button" onClick={completePreviousAndStartToday}>Encerrar treino de {previousDate} e começar hoje</button>
             <button className="essential-quiet" type="button" onClick={() => setPendingSessionStart(null)}>Agora não</button>
+          </div>
+        </dialog>
+      </div>
+    );
+  }
+
+  function renderWorkoutPickerModal() {
+    if (modal !== 'workout') return null;
+    return (
+      <div className="essential-sheet-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setModal(null); }}>
+        <dialog open className="essential-sheet essential-workout-picker" aria-modal="true" aria-labelledby="workout-picker-title">
+          <div className="essential-sheet-head">
+            <h2 id="workout-picker-title">Escolher treino</h2>
+            <button autoFocus className="essential-quiet" type="button" onClick={() => setModal(null)} aria-label="Fechar">Fechar</button>
+          </div>
+          <div className="essential-sheet-body">
+            <p className="essential-exercise-note">Escolha agora. A sessão só começa ao tocar em Começar.</p>
+            <button className="essential-primary essential-workout-choice" type="button" onClick={() => chooseWorkout()}>
+              <span>Treino livre</span>
+              <span className="essential-choice-note">Escolha os exercícios durante o treino</span>
+            </button>
+            {state.plans.map((plan) => (
+              <button className="essential-secondary essential-workout-choice" type="button" key={plan.id} onClick={() => chooseWorkout(plan)}>
+                <span>{plan.emoji ? `${plan.emoji} ` : ''}{plan.name}</span>
+                <span className="essential-choice-note">{plan.exercises.length} {plan.exercises.length === 1 ? 'exercício' : 'exercícios'}</span>
+              </button>
+            ))}
+            <button className="essential-quiet" type="button" onClick={() => { setModal(null); navigate('folder', 'plans'); }}>Gerenciar fichas</button>
           </div>
         </dialog>
       </div>
@@ -1508,7 +1578,7 @@ export default function Home() {
     return <main className="essential-page essential-loading"><h1 className="essential-page-title">GymSheet</h1><p className="essential-exercise-note">Carregando os dados locais.</p></main>;
   }
 
-  if (sessionViewId) return <>{renderSession()}{renderPlanModal()}{renderPickerModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{toast && <output className="essential-toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</>;
+  if (sessionViewId) return <>{renderSession()}{renderWorkoutPickerModal()}{renderPlanModal()}{renderPickerModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{toast && <output className="essential-toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</>;
 
-  return <div ref={shellRef} className="app-shell essential-shell essential-home">{renderHeader()}{tab === 'today' && renderToday()}{tab === 'folder' && renderFolder()}{tab === 'week' && renderWeek()}{tab === 'data' && renderData()}{renderPlanModal()}{renderPickerModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{toast && <output className="essential-toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</div>;
+  return <div ref={shellRef} className="app-shell essential-shell essential-home">{renderHeader()}{tab === 'today' && renderToday()}{tab === 'folder' && renderFolder()}{tab === 'week' && renderWeek()}{tab === 'data' && renderData()}{renderWorkoutPickerModal()}{renderPlanModal()}{renderPickerModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{toast && <output className="essential-toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</div>;
 }

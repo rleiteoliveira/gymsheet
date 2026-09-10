@@ -91,15 +91,18 @@ test('começa livre, persiste série, recarrega, retoma o mesmo ID e conclui no 
   await page.getByLabel('Peso em quilogramas').fill('25');
   await page.getByLabel('Repetições', { exact: true }).fill('12');
   await page.getByTestId('quick-set-done').click();
-  await expect.poll(async () => (await readState(page)).sessions[0]?.exercises[0]?.sets.length).toBe(1);
+  await expect(page.getByText('Série salva', { exact: true })).toBeVisible();
+  await page.getByTestId('quick-set-done').click();
+  await expect.poll(async () => (await readState(page)).sessions[0]?.exercises[0]?.sets.length).toBe(2);
   const recorded = (await readState(page)).sessions[0];
   expect(recorded.sourcePlanName).toBe(freeSessionName);
   expect(recorded.exercises[0].sets[0]).toMatchObject({ kg: 25, reps: 12 });
+  expect(recorded.exercises[0].sets[1]).toMatchObject({ kg: 25, reps: 12 });
   await expect(launcher).toHaveCount(0);
   await page.getByRole('button', { name: 'Voltar', exact: true }).click();
   await page.reload();
   await expect(launcher).toHaveText('Retomar');
-  await expect(page.getByRole('button', { name: /Escolher ficha:/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Escolher treino:/ })).toHaveCount(0);
   await launcher.click();
   await expect(page.getByRole('heading', { name: freeSessionName, exact: true })).toBeVisible();
   await expect(page.getByText('Série 1', { exact: true })).toBeVisible();
@@ -160,17 +163,20 @@ test('cria ficha pelo editor e picker, sem ranking visível', async ({ page }, i
   expect((await readState(page)).sessions).toEqual([]);
 });
 
-test('nome abre Fichas e fixar permanece explícito, sem criar sessão', async ({ page }) => {
+test('seletor escolhe treino sem criar sessão e mantém gestão separada', async ({ page }) => {
   await openApp(page, { ...empty, plans: [plan] });
-  const selector = page.getByRole('button', { name: 'Escolher ficha: Treino livre', exact: true });
+  const selector = page.getByRole('button', { name: 'Escolher treino: Treino livre', exact: true });
   await selector.focus();
   await page.keyboard.press('Enter');
-  await expect(page.locator('main h1')).toBeFocused();
+  const workoutPicker = page.getByRole('dialog', { name: 'Escolher treino', exact: true });
+  await expect(workoutPicker).toBeVisible();
+  await expect(workoutPicker.getByRole('button', { name: 'Fechar', exact: true })).toBeFocused();
+  await expect(workoutPicker.getByRole('button', { name: 'Gerenciar fichas', exact: true })).toBeVisible();
   expect(await readState(page)).toEqual({ ...empty, plans: [plan] });
-  await page.getByRole('button', { name: 'Fixar Peito', exact: true }).click();
+  await workoutPicker.getByRole('button', { name: /^Peito/ }).click();
   await expect.poll(async () => (await readState(page)).todayPin).toEqual(pinned.todayPin);
   await goTo(page, 'Treino');
-  await expect(page.getByRole('button', { name: 'Escolher ficha: Peito', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Escolher treino: Peito', exact: true })).toBeVisible();
   expect((await readState(page)).sessions).toEqual([]);
   await page.getByTestId('start-workout').click();
   await expect(page.getByRole('heading', { name: 'Peito', exact: true })).toBeVisible();
@@ -271,10 +277,12 @@ test('ficha: pular, trocar, adicionar, recarregar e finalizar o mesmo ID', async
   await openApp(page, { plans: [twoExercisePlan], sessions: [], todayPin: { kind: 'plan', id: twoExercisePlan.id } });
   await page.getByTestId('start-workout').click();
   await expect(page.getByRole('heading', { name: 'Peito', exact: true })).toBeVisible();
+  await page.getByText('Ações do exercício', { exact: true }).click();
   await expect(page.getByRole('button', { name: 'Pular', exact: true })).toBeVisible();
   await expect(page.locator('.session-clock, .progress-track, .status-chip')).toHaveCount(0);
   await expect(page.getByText('Feito', { exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Pular', exact: true }).click();
+  await page.getByText('Ações do exercício', { exact: true }).click();
   await page.getByRole('button', { name: 'Trocar', exact: true }).click();
   const swapPicker = page.getByRole('dialog', { name: 'Trocar exercício' });
   await swapPicker.locator('button.picker-item').nth(2).click();
@@ -338,7 +346,7 @@ test('nome longo, texto a 200%, contraste, alvos e menu em 320px e desktop', asy
     await page.setViewportSize({ width, height: 844 });
     for (const fontSize of ['100%', '200%']) {
       await page.evaluate((value) => { document.documentElement.style.fontSize = value; }, fontSize);
-      await expect(page.getByRole('button', { name: 'Escolher ficha: ' + longPlan.name, exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Escolher treino: ' + longPlan.name, exact: true })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       for (const button of await page.locator('.essential-header button, .essential-main button').all()) {
         const box = await button.boundingBox();
