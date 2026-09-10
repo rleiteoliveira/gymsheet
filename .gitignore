@@ -11,6 +11,7 @@
 # testing
 /coverage
 /.playwright-cli/
+/test-results/
 
 # next.js
 /.next/
@@ -38,4 +39,5 @@ next-env.d.ts
 /dist/
 /.wrangler/
 /outputs/
+/output/
 /work/

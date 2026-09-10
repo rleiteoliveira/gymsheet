@@ -33,9 +33,9 @@ npm run build
 
 ## Fluxo de entrega
 
-Branches curtas (`feat/*`, `fix/*`) entram por PR em `main`. O CI executa lint, TypeScript, testes, build e E2E; o dono não testa; o CI clica no caminho feliz.
+Branches curtas de trabalho entram por PR em `main` (a convenção pode ser `feat/*`, `fix/*` ou `codex/*` conforme o agente/fluxo). O CI executa lint, TypeScript, testes, build e E2E; o dono não testa; o CI clica no caminho feliz.
 Em push para `main`, depois do CI verde, o workflow publica o artefato testado em Cloudflare Workers e confere `build-meta.json` em produção. Configure `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID` nos secrets do repositório; nunca grave tokens no código.
 
-Agentes (Codex, Grok, Antigravity): leia [AGENTS.md](AGENTS.md). Planos de fatia ficam em [docs/slices/](docs/slices/README.md).
+Agentes (Codex, Grok, Antigravity): leia [AGENTS.md](AGENTS.md) e o [roteador de contexto](docs/context/README.md). O estado volátil fica em [docs/context/00-current-state.md](docs/context/00-current-state.md); planos de fatia ficam em [docs/slices/](docs/slices/README.md).
 
 O catálogo e as imagens de exercícios são carregados do projeto [free-exercise-db](https://github.com/yuhonas/free-exercise-db). Consulte o repositório de origem para os respectivos termos e créditos.

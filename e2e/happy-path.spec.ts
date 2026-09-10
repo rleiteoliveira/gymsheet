@@ -85,6 +85,7 @@ test('começa livre, persiste série, recarrega, retoma o mesmo ID e conclui no 
   await expect(page.getByRole('dialog', { name: 'Começar treino' })).toHaveCount(0);
   const picker = page.getByRole('dialog', { name: 'Adicionar na sessão' });
   await expect(page.getByText(/nos últimos 30 dias/)).toHaveCount(0);
+  await expect(page.locator('.essential-sheet[data-starting="true"]')).toBeVisible();
   await picker.locator('button.picker-item').first().click();
   await expect(page.locator('.session-clock, .progress-track, .status-chip')).toHaveCount(0);
   await page.getByLabel('Peso em quilogramas').fill('25');
@@ -173,7 +174,17 @@ test('nome abre Fichas e fixar permanece explícito, sem criar sessão', async (
   expect((await readState(page)).sessions).toEqual([]);
   await page.getByTestId('start-workout').click();
   await expect(page.getByRole('heading', { name: 'Peito', exact: true })).toBeVisible();
+  await expect(page.locator('.essential-session[data-starting="true"]')).toBeVisible();
   await expect.poll(async () => (await readState(page)).sessions.length).toBe(1);
+  expect((await readState(page)).sessions[0]).toMatchObject({ sourcePlanId: plan.id, sourcePlanName: plan.name, state: 'in_progress' });
+});
+
+test('partida com movimento reduzido mostra o destino sem atraso', async ({ page }) => {
+  await openApp(page, pinned);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.getByTestId('start-workout').click();
+  await expect(page.getByRole('heading', { name: 'Peito', exact: true })).toBeVisible();
+  await expect(page.locator('.essential-session[data-starting="true"]')).toHaveCount(0);
   expect((await readState(page)).sessions[0]).toMatchObject({ sourcePlanId: plan.id, sourcePlanName: plan.name, state: 'in_progress' });
 });
 

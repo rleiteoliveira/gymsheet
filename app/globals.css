@@ -175,8 +175,11 @@ a:focus-visible {
 .essential-selector { display: inline-flex; align-items: center; gap: 12px; max-width: 100%; min-height: 48px; border: 0; padding: 0; color: inherit; background: transparent; text-align: left; font: inherit; cursor: pointer; }
 .essential-selector span { min-width: 0; }
 .essential-selector svg { flex: 0 0 auto; }
-.essential-start { display: block; width: 100%; min-height: 52px; margin-top: 32px; border: 1px solid var(--essential-text); border-radius: 10px; padding: 12px 16px; color: var(--essential-bg); background: var(--essential-text); font-size: 1rem; font-weight: 600; cursor: pointer; }
+.essential-start { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 52px; margin-top: 32px; border: 1px solid var(--essential-text); border-radius: 10px; padding: 12px 16px; color: var(--essential-bg); background: var(--essential-text); font-size: 1rem; font-weight: 600; cursor: pointer; }
 .essential-start:hover { background: #e4e2d9; }
+.essential-start:disabled { cursor: wait; }
+.essential-start[data-starting="true"] { animation: essential-start-press 120ms ease-out both; }
+.essential-start[data-starting="true"] svg { animation: essential-start-icon 620ms cubic-bezier(.22, 1, .36, 1) both; }
 .essential-warning { margin-top: 24px; }
 .essential-header button:focus-visible, .essential-main button:focus-visible, .essential-menu button:focus-visible, .essential-title:focus-visible { outline: 2px solid var(--essential-text); outline-offset: 4px; }
 .essential-menu-overlay { position: fixed; inset: 0; z-index: 110; background: rgb(0 0 0 / 65%); opacity: 1; transition: opacity 180ms ease; }
@@ -191,6 +194,7 @@ a:focus-visible {
 .essential-menu[data-starting-style], .essential-menu[data-ending-style] { transform: translateX(-100%); }
 @media (prefers-reduced-motion: reduce) {
   .essential-menu, .essential-menu-overlay { transition: none !important; animation: none !important; }
+  .essential-start[data-starting="true"], .essential-start[data-starting="true"] svg { animation: none !important; }
 }
 
 .essential-menu-heading .essential-icon-button { margin-left: auto; }
@@ -268,6 +272,17 @@ a:focus-visible {
 .essential-exercise-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .essential-session-empty { margin-top: 48px; }
 .essential-session-footer { display: grid; gap: 8px; margin-top: 32px; }
+.essential-session[data-starting="true"] .essential-session-header,
+.essential-session[data-starting="true"] .essential-session-empty,
+.essential-session[data-starting="true"] .essential-session-footer {
+  animation: essential-session-arrive 480ms cubic-bezier(.22, 1, .36, 1) both;
+}
+.essential-session[data-starting="true"] .essential-session-header { animation-delay: 40ms; }
+.essential-session[data-starting="true"] .essential-session-empty { animation-delay: 120ms; }
+.essential-session[data-starting="true"] .essential-session-footer { animation-delay: 200ms; }
+.essential-session[data-starting="true"] .essential-exercise.active {
+  animation: essential-exercise-arrive 520ms cubic-bezier(.22, 1, .36, 1) 120ms both;
+}
 .essential-session-header .essential-quiet,
 .essential-exercise-actions .essential-secondary,
 .essential-exercise-actions .essential-quiet {
@@ -402,6 +417,7 @@ a:focus-visible {
     padding: 24px 24px calc(24px + env(safe-area-inset-bottom));
     background: var(--essential-surface);
 }
+.essential-sheet[data-starting="true"] { animation: essential-sheet-arrive 520ms cubic-bezier(.22, 1, .36, 1) both; }
 
 .essential-sheet-head {
     display: flex;
@@ -701,3 +717,30 @@ label.essential-secondary {
 }
 .essential-sheet-body > .essential-secondary,
 .essential-sheet-body > .essential-quiet { width: 100%; }
+
+@keyframes essential-start-press {
+  0% { transform: scale(1); }
+  45% { transform: scale(.985); }
+  100% { transform: scale(1); }
+}
+
+@keyframes essential-start-icon {
+  0% { opacity: .6; transform: scale(.82) rotate(-12deg); }
+  45% { opacity: 1; transform: scale(1.08) rotate(8deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+@keyframes essential-session-arrive {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes essential-exercise-arrive {
+  from { opacity: 0; transform: translateY(10px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes essential-sheet-arrive {
+  from { opacity: .5; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
