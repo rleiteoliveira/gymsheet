@@ -19,6 +19,10 @@
 
 ## Evidência remota
 
+- Validação local do slice 36 (2026-09-10): `npm test` (8 arquivos, 27 testes), `npm run lint`, `npx tsc --noEmit`, `npm run build`, `npm run verify:build` e `npm run test:e2e` (17 testes) concluídos com sucesso. Cobertura adicionada para horário de séries, recarga/retomada e intervalo congelado após conclusão; a verificação remota e o build publicado ainda estão pendentes.
+
+- Revalidação de planejamento do slice 36 (2026-09-10): HEAD e main remoto `3d72bb7d866d9a92c41a952a955a865c7ddeeb9c`, produção com o mesmo buildId e HTTP 200. Run [34499101722](https://github.com/rleiteoliveira/gymsheet/actions/runs/34499101722) com ci e deploy success; nenhuma nova execução local de testes nesta rodada. A evidência abaixo se refere à entrega da feature.
+
 - PR [#46](https://github.com/rleiteoliveira/gymsheet/pull/46) mergeado em `main`.
 - Run [34498348809](https://github.com/rleiteoliveira/gymsheet/actions/runs/34498348809): `ci` e `deploy` concluídos com sucesso.
 - `scripts/verify-production-build.mjs` confirmou `5fd96d4a318a075dad023aa585097396593e0244` em `https://gymsheet.rleiteoliveira.workers.dev`.

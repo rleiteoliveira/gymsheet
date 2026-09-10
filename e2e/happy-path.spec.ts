@@ -139,6 +139,44 @@ test('começa livre, persiste série, recarrega, retoma o mesmo ID e conclui no 
   expect(afterRestart.sessions).toHaveLength(2);
 });
 
+test('mostra o horário de cada série e mantém o intervalo do treino após recarga e conclusão', async ({ page }) => {
+  await openApp(page);
+  await page.getByTestId('start-workout').click();
+  const picker = page.getByRole('dialog', { name: 'Adicionar na sessão' });
+  await picker.locator('button.picker-item').first().click();
+  const timer = page.getByTestId('workout-timer');
+  await expect(timer).toContainText('Tempo de treino');
+
+  await page.getByLabel('Peso em quilogramas').fill('25');
+  await page.getByLabel('Repetições', { exact: true }).fill('12');
+  await page.getByTestId('quick-set-done').click();
+  await expect.poll(async () => (await readState(page)).sessions[0]?.exercises[0]?.sets.length).toBe(1);
+
+  await page.clock.setFixedTime(new Date('2026-09-06T15:01:05.000Z'));
+  await expect(timer).toHaveText('Tempo de treino · 01:05');
+  await page.getByTestId('quick-set-done').click();
+  await expect.poll(async () => (await readState(page)).sessions[0]?.exercises[0]?.sets.length).toBe(2);
+  const recorded = await readState(page);
+  expect(recorded.sessions[0].exercises[0].sets.map((set) => set.savedAt)).toEqual([
+    now.toISOString(),
+    '2026-09-06T15:01:05.000Z',
+  ]);
+  await expect(page.locator('.essential-set-time')).toHaveText(['12:00', '12:01']);
+
+  await page.reload();
+  await page.getByTestId('start-workout').click();
+  await expect(page.getByTestId('workout-timer')).toHaveText('Tempo de treino · 01:05');
+  expect((await readState(page)).sessions).toEqual(recorded.sessions);
+
+  await page.getByTestId('finish-workout').click();
+  await expect.poll(async () => (await readState(page)).sessions[0]?.state).toBe('completed');
+  await page.clock.setFixedTime(new Date('2026-09-06T15:30:00.000Z'));
+  await page.getByRole('button', { name: 'Abrir menu', exact: true }).click();
+  await page.getByRole('dialog', { name: 'GymSheet', exact: true }).getByRole('button', { name: 'Calendário', exact: true }).click();
+  await page.getByRole('button', { name: 'Editar', exact: true }).click();
+  await expect(page.getByTestId('workout-timer')).toHaveText('Intervalo registrado · 01:05');
+});
+
 test('cria ficha pelo editor e picker, sem ranking visível', async ({ page }, info) => {
   await openApp(page);
   await goTo(page, 'Fichas');

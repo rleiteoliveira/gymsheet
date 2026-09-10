@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Dialog } from '@base-ui/react/dialog';
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { SetRecordedAt, WorkoutTimer } from '@/app/components/workout-time';
 import { createBackup, loadAppState, parseBackup, restoreAppState, saveAppState } from '@/lib/storage';
 import { FALLBACK_EXERCISES, imageUrl, loadCatalog, toSnapshot } from '@/lib/catalog';
 import { filterCatalogExercises, muscleGroupsForCatalog } from '@/lib/catalog-filter';
@@ -1271,6 +1272,7 @@ export default function Home() {
             <button className="essential-quiet" type="button" onClick={leaveSession}>Voltar</button>
             <p className="essential-session-context">{sessionDate}</p>
             <h1 tabIndex={-1}>{activeSession.sourcePlanName ?? 'Sessão vazia'}</h1>
+            <WorkoutTimer startedAt={activeSession.startedAt} completedAt={activeSession.completedAt} state={activeSession.state} />
           </header>
 
           {activeSession.exercises.length === 0 ? (
@@ -1311,7 +1313,10 @@ export default function Home() {
                               <ul className="essential-set-list">
                                 {exercise.sets.map((set) => (
                                   <li className="essential-set-row" key={set.id}>
-                                    <span>Série {set.index}</span>
+                                    <span className="essential-set-label">
+                                      <span>Série {set.index}</span>
+                                      <SetRecordedAt savedAt={set.savedAt} sessionStartedAt={activeSession.startedAt} />
+                                    </span>
                                     <strong>{formatKg(set.kg)} · {set.reps} reps</strong>
                                   </li>
                                 ))}
