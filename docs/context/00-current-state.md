@@ -7,18 +7,20 @@
 
 ## Veredito curto
 
-O slice 34, **Ritual de partida**, foi implementado no worktree e validado localmente. O comportamento foi aceito pelo dono. Ainda não há evidência registrada aqui de PR, merge, CI remoto ou deploy dessa mudança; portanto não chamar o slice de `done`, a branch de publicada ou a produção de atualizada.
+O slice 34, **Ritual de partida**, e a reorganização de contexto foram publicados na branch remota em `f3c3323` (`feat: add workout start ritual and context routing`). O worktree ficou limpo após o push. Ainda não há evidência registrada aqui de PR, merge, CI remoto ou deploy dessa mudança; portanto não chamar o slice de `done`, a branch de `main` ou a produção de atualizada.
 
 ## Snapshot do checkout observado
 
 - Diretório: `C:\Users\rafao\Documents\GitHub\gymsheet`
 - Branch: `codex/30-fluxo-principal-direto`
-- `HEAD`: `e4da73f` (`docs: fix image pilot slice references`)
-- `origin/codex/30-fluxo-principal-direto`: `e4da73f` no momento da observação
+- Último commit publicado observado: `f3c3323` (`feat: add workout start ritual and context routing`)
+- `origin/codex/30-fluxo-principal-direto`: `f3c3323` no momento da observação
 - `origin/main`: `bdda6b1` (`feat: consolidar o padrão essencial (#42)`) no momento da observação
 - `main` local: `9d28a00`; não tratar esse ref local como espelho atual de `origin/main`
 
-## Mudanças locais em escopo
+Para obter o hash exato depois de qualquer nova operação, rode `git status --short --branch`, `git rev-parse HEAD` e `git rev-parse @{u}`. Este arquivo é um snapshot datado, não um ponteiro autoatualizável.
+
+## Conteúdo publicado neste ciclo
 
 Implementação do slice 34:
 
@@ -43,7 +45,7 @@ O ambiente contém `output/` e `test-results/` ignorados pelo Git. São artefato
 
 | Item | Estado | Regra |
 |---|---|---|
-| Slice 34 — Ritual de partida | implementado localmente; documentação `doing` | continuar apenas dentro do slice até PR/CI/merge |
+| Slice 34 — Ritual de partida | implementado e publicado na branch; documentação `doing` | continuar apenas dentro do slice até PR/CI/merge |
 | Slice 33 — imagens piloto | `draft` | não executar sem promoção explícita para `ready` |
 | Slices 24–32 com `doing` no índice | registro antigo a revalidar | não interpretar como fila ativa nem autorização |
 | Produção | não verificada nesta reorganização | não declarar atualização |
