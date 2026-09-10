@@ -6,20 +6,20 @@
 
 ## Checkout e entrega observados
 
-- main local atualizada por fast-forward para origin/main 1ad079776a6157b8884a52fe027ba64aa8a0cff9.
-- PR #45 mergeado; main contém refinamento do fluxo, ritual de partida e contexto operacional.
-- Run https://github.com/rleiteoliveira/gymsheet/actions/runs/34432213991: ci e deploy com success para esse SHA.
-- Produção consultada: buildId 1ad079776a6157b8884a52fe027ba64aa8a0cff9; builtAt 2026-09-10T03:09:35.007Z.
+- main recebeu o merge do PR #46 no commit de feature `5fd96d4a318a075dad023aa585097396593e0244`.
+- PR #45 e PR #46 estão mergeados; main contém refinamento do fluxo, ritual de partida e Treinar com leveza.
+- Run https://github.com/rleiteoliveira/gymsheet/actions/runs/34498348809: ci e deploy com success para o commit de feature.
+- Produção consultada após o deploy: buildId `5fd96d4a318a075dad023aa585097396593e0244`; HTTP 200; título `GymSheet`.
 - output/ e test-results/ preexistentes preservados; ignorados conforme main.
 
 ## Pedido atual
 
-Reestruturação da inicial e treino, menor densidade, animações leves e publicação após implementação. O dono autorizou a implementação; [slice 35](../slices/35-treinar-com-leveza.md) está `doing` na branch `codex/35-treinar-com-leveza`.
+Reestruturação da inicial e treino, menor densidade e animações leves foi implementada e publicada. [Slice 35](../slices/35-treinar-com-leveza.md) está `done` após PR #46, CI verde, merge e deploy.
 
-Publicação da implementação aprovada já autorizada no pedido; cumprir PR, CI, merge, deploy e comparação de buildId sem solicitar essa autorização novamente.
+O fluxo de entrega foi concluído. Uma atualização posterior apenas de documentação pode gerar novo buildId; revalidar HEAD e produção antes de afirmar o estado novamente.
 
 ## Limites
 
 - Slice 33 continua draft; não implementar imagens por inferência.
 - doing antigos no índice não autorizam novas mudanças.
-- CI acima pertence a main 1ad0797, não à futura implementação do slice 35.
+- Imagens não entram nesta entrega.
