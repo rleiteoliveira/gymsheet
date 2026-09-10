@@ -1,7 +1,7 @@
 # Slice 36 — Tempo do treino
 
 - Issue / origem: pedido do dono em 2026-09-10; perspectiva de tempo no site
-- Status: doing
+- Status: done
 - Cabe no próximo treino? sim — enxergar quando registrou cada série e há quanto tempo o treino começou.
 
 ## Direção
@@ -59,4 +59,4 @@ Session não tem createdAt nem marcador de sessão retroativa, conforme lib/type
 
 - Marcação confiável de sessão retroativa e aferição de esforço dependeriam de contrato de dados próprio; ficam fora desta fatia.
 - Descanso e integrações nativas só entram mediante pedido posterior, após uso do tempo corrido no site.
-- Slice promovido a `ready` pelo dono em 2026-09-10; implementação e validação seguem neste recorte.
+- Slice promovido a `ready` pelo dono em 2026-09-10; concluído após PR #48, CI/deploy verdes e avaliação pós-deploy.

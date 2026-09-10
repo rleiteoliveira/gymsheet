@@ -28,7 +28,7 @@ Antes de usar este índice, leia [o estado atual do checkout](../context/00-curr
 
 | Slice | Status | Issue / origem |
 |---|---|---|
-| [36-tempo-do-treino](./36-tempo-do-treino.md) | doing | pedido do dono em 2026-09-10 |
+| [36-tempo-do-treino](./36-tempo-do-treino.md) | done | pedido do dono em 2026-09-10 |
 | [35-treinar-com-leveza](./35-treinar-com-leveza.md) | done | pedido do dono em 2026-09-10 / #43 |
 | [34-ritual-de-partida](./34-ritual-de-partida.md) | doing | pedido do dono |
 | [33-imagens-exercicios-piloto](./33-imagens-exercicios-piloto.md) | draft | [#44](https://github.com/rleiteoliveira/gymsheet/issues/44) |
