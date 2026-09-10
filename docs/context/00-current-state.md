@@ -16,7 +16,9 @@
 
 Reestruturação da inicial e treino, menor densidade e animações leves foi implementada e publicada. [Slice 35](../slices/35-treinar-com-leveza.md) está `done` após PR #46, CI verde, merge e deploy.
 
-O fluxo de entrega foi concluído. Uma atualização posterior apenas de documentação pode gerar novo buildId; revalidar HEAD e produção antes de afirmar o estado novamente.
+Revalidação em 2026-09-10: checkout e remoto main em `3d72bb7d866d9a92c41a952a955a865c7ddeeb9c` (fechamento documental via PR #47). Produção serve o mesmo buildId com HTTP 200; run [34499101722](https://github.com/rleiteoliveira/gymsheet/actions/runs/34499101722) tem jobs ci e deploy com success. Não foram repetidos testes locais nesta rodada de planejamento.
+
+Próximo pedido: horário de registro das séries e cronômetro até finalizar. [Slice 36 — Tempo do treino](../slices/36-tempo-do-treino.md) foi promovido a `ready` pelo dono e está em `doing` durante a implementação. Usa savedAt/startedAt/completedAt existentes, sem migração; a validação pós-deploy segue neste recorte.
 
 ## Limites
 

@@ -221,6 +221,8 @@ a:focus-visible {
   overflow-wrap: anywhere;
 }
 .essential-session-context { margin: 0; color: var(--essential-muted); font-size: .875rem; line-height: 1.4; }
+.essential-session-timer { margin: -8px 0 0; color: var(--essential-muted); font-size: .875rem; line-height: 1.4; }
+.essential-session-timer time { color: var(--essential-text); font-variant-numeric: tabular-nums; }
 .essential-session-list { display: grid; gap: 8px; margin: 32px 0 0; padding: 0; list-style: none; }
 .essential-exercise { border-bottom: 1px solid var(--essential-line); padding: 10px 0; }
 .essential-exercise.active { border-bottom-color: var(--essential-text); }
@@ -246,7 +248,9 @@ a:focus-visible {
 .essential-exercise-meta { flex: 0 0 auto; margin-left: auto; color: var(--essential-muted); font-size: .75rem; white-space: nowrap; }
 .essential-exercise-note { margin: 8px 0 0; color: var(--essential-muted); font-size: .875rem; }
 .essential-set-list { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
-.essential-set-row { display: flex; justify-content: space-between; gap: 12px; color: var(--essential-muted); font-size: .875rem; }
+.essential-set-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; color: var(--essential-muted); font-size: .875rem; }
+.essential-set-label { display: grid; min-width: 0; gap: 2px; }
+.essential-set-time { color: var(--essential-muted); font-size: .75rem; line-height: 1.35; overflow-wrap: anywhere; }
 .essential-set-row strong { color: var(--essential-text); font-weight: 600; }
 .essential-composer { display: grid; gap: 12px; margin-top: 16px; }
 .essential-composer-label { margin: 0; color: var(--essential-muted); font-size: .875rem; }
