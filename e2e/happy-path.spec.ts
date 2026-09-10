@@ -85,6 +85,7 @@ test('começa livre, persiste série, recarrega, retoma o mesmo ID e conclui no 
   await expect(page.getByRole('dialog', { name: 'Começar treino' })).toHaveCount(0);
   const picker = page.getByRole('dialog', { name: 'Adicionar na sessão' });
   await expect(page.getByText(/nos últimos 30 dias/)).toHaveCount(0);
+  await expect(page.locator('.essential-sheet[data-starting="true"]')).toBeVisible();
   await picker.locator('button.picker-item').first().click();
   await expect(page.locator('.session-clock, .progress-track, .status-chip')).toHaveCount(0);
   await page.getByLabel('Peso em quilogramas').fill('25');
@@ -173,7 +174,17 @@ test('nome abre Fichas e fixar permanece explícito, sem criar sessão', async (
   expect((await readState(page)).sessions).toEqual([]);
   await page.getByTestId('start-workout').click();
   await expect(page.getByRole('heading', { name: 'Peito', exact: true })).toBeVisible();
+  await expect(page.locator('.essential-session[data-starting="true"]')).toBeVisible();
   await expect.poll(async () => (await readState(page)).sessions.length).toBe(1);
+  expect((await readState(page)).sessions[0]).toMatchObject({ sourcePlanId: plan.id, sourcePlanName: plan.name, state: 'in_progress' });
+});
+
+test('partida com movimento reduzido mostra o destino sem atraso', async ({ page }) => {
+  await openApp(page, pinned);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.getByTestId('start-workout').click();
+  await expect(page.getByRole('heading', { name: 'Peito', exact: true })).toBeVisible();
+  await expect(page.locator('.essential-session[data-starting="true"]')).toHaveCount(0);
   expect((await readState(page)).sessions[0]).toMatchObject({ sourcePlanId: plan.id, sourcePlanName: plan.name, state: 'in_progress' });
 });
 
@@ -215,7 +226,11 @@ test('menu oferece cinco destinos, contém foco e fecha por teclado e clique ext
   expect(await readState(page)).toEqual(pinned);
 });
 
-for (const action of ['Agora não', 'Retomar ontem', 'Encerrar ontem e começar hoje']) {
+for (const action of [
+  'Agora não',
+  'Continuar treino de sábado, 5 de setembro',
+  'Encerrar treino de sábado, 5 de setembro e começar hoje',
+]) {
   test('sessão anterior exige decisão explícita: ' + action, async ({ page }) => {
     const previous = {
       ...createQuickSession('Ontem', yesterday, () => 'previous'),
@@ -232,14 +247,14 @@ for (const action of ['Agora não', 'Retomar ontem', 'Encerrar ontem e começar 
     expect(await readState(page)).toEqual(state);
     await dialog.getByRole('button', { name: action, exact: true }).last().click();
     await expect(dialog).toHaveCount(0);
-    if (action === 'Encerrar ontem e começar hoje') {
+    if (action === 'Encerrar treino de sábado, 5 de setembro e começar hoje') {
       await expect.poll(async () => (await readState(page)).sessions.length).toBe(2);
       const sessions = (await readState(page)).sessions;
       expect(sessions[0]).toEqual({ ...previous, state: 'completed', completedAt: now.toISOString() });
       expect(sessions[1]).toMatchObject({ sourcePlanId: plan.id, startedAt: now.toISOString(), state: 'in_progress' });
     } else {
       expect(await readState(page)).toEqual(state);
-      if (action === 'Retomar ontem') await expect(page.getByRole('heading', { name: 'Ontem', exact: true })).toBeVisible();
+      if (action === 'Continuar treino de sábado, 5 de setembro') await expect(page.getByRole('heading', { name: 'Ontem', exact: true })).toBeVisible();
       else await expect(page.getByTestId('start-workout')).toHaveText('Começar');
     }
   });
@@ -266,7 +281,7 @@ test('ficha: pular, trocar, adicionar, recarregar e finalizar o mesmo ID', async
   await page.getByLabel('Peso em quilogramas').fill('30');
   await page.getByLabel('Repetições', { exact: true }).fill('8');
   await page.getByTestId('quick-set-done').click();
-  await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
+  await page.getByRole('button', { name: 'Adicionar exercício', exact: true }).click();
   const addPicker = page.getByRole('dialog', { name: 'Adicionar na sessão' });
   await addPicker.locator('button.picker-item').nth(3).click();
   await page.getByLabel('Peso em quilogramas').fill('12');

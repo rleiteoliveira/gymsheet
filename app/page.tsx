@@ -255,6 +255,8 @@ export default function Home() {
   const shellRef = useRef<HTMLDivElement>(null);
   const menuCloseRef = useRef<HTMLButtonElement>(null);
   const focusDestinationRef = useRef(false);
+  const [startMotion, setStartMotion] = useState<'idle' | 'queued' | 'entering'>('idle');
+  const [pendingStartAction, setPendingStartAction] = useState<(() => void) | null>(null);
 
   useEffect(() => {
     if (!navigationVersion) return;
@@ -281,6 +283,16 @@ export default function Home() {
   const reloadAfterServiceWorkerUpdateRef = useRef(false);
 
   const notify = useCallback((message: string) => setToast(message), []);
+
+  function runStartTransition(action: () => void) {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      action();
+      return;
+    }
+    if (startMotion !== 'idle') return;
+    setStartMotion('queued');
+    setPendingStartAction(() => action);
+  }
 
   function applyLoadedState(next: AppState) {
     setState(next);
@@ -407,6 +419,22 @@ export default function Home() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
+  useEffect(() => {
+    if (startMotion !== 'queued' || !pendingStartAction) return undefined;
+    const timer = window.setTimeout(() => {
+      pendingStartAction();
+      setPendingStartAction(null);
+      setStartMotion('entering');
+    }, 90);
+    return () => window.clearTimeout(timer);
+  }, [pendingStartAction, startMotion]);
+
+  useEffect(() => {
+    if (startMotion !== 'entering') return undefined;
+    const timer = window.setTimeout(() => setStartMotion('idle'), 620);
+    return () => window.clearTimeout(timer);
+  }, [startMotion]);
+
   const pinnedPlan = state.todayPin?.kind === 'plan' ? state.plans.find((plan) => plan.id === state.todayPin?.id) : undefined;
   const activeSession = sessionViewId ? state.sessions.find((session) => session.id === sessionViewId) : undefined;
 
@@ -460,8 +488,10 @@ export default function Home() {
     const now = new Date();
     const decision = decideSessionStart(state.sessions, now);
     if (decision.kind === 'resume-today') {
-      setModal(null);
-      enterSession(decision.session);
+      runStartTransition(() => {
+        setModal(null);
+        enterSession(decision.session);
+      });
       return;
     }
     if (decision.kind === 'choose-previous') {
@@ -474,19 +504,21 @@ export default function Home() {
       return;
     }
 
-    const session = createQuickSession(suggestedSessionName(now), now, makeId);
-    mutate((current) => ({
-      ...current,
-      sessions: [...current.sessions, session],
-      todayPin: { kind: 'session', id: session.id },
-    }));
-    enterSession(session);
-    setPickerMode('add');
-    setPickerSessionExerciseId(null);
-    setPickerSearch('');
-    setPickerMuscleGroups([]);
-    setModal('picker');
-    notify('Treino começou. Escolha um exercício.');
+    runStartTransition(() => {
+      const session = createQuickSession(suggestedSessionName(now), now, makeId);
+      mutate((current) => ({
+        ...current,
+        sessions: [...current.sessions, session],
+        todayPin: { kind: 'session', id: session.id },
+      }));
+      enterSession(session);
+      setPickerMode('add');
+      setPickerSessionExerciseId(null);
+      setPickerSearch('');
+      setPickerMuscleGroups([]);
+      setModal('picker');
+      notify('Treino começou. Escolha um exercício.');
+    });
   }
 
   function openQuickExercisePicker() {
@@ -565,7 +597,7 @@ export default function Home() {
     const selectedPlan = plan ?? pinnedPlan;
     const decision = decideSessionStart(state.sessions, new Date());
     if (decision.kind === 'resume-today') {
-      enterSession(decision.session);
+      runStartTransition(() => enterSession(decision.session));
       return;
     }
     if (decision.kind === 'choose-previous') {
@@ -575,54 +607,58 @@ export default function Home() {
       });
       return;
     }
-    const session = createSessionFromPlan(selectedPlan, new Date(), makeId);
-    mutate((current) => ({
-      ...current,
-      sessions: [...current.sessions, session],
-      todayPin: { kind: 'session', id: session.id },
-    }));
-    enterSession(session);
-    notify(selectedPlan ? `Sessão ${selectedPlan.name} começou.` : 'Sessão vazia começou.');
+    runStartTransition(() => {
+      const session = createSessionFromPlan(selectedPlan, new Date(), makeId);
+      mutate((current) => ({
+        ...current,
+        sessions: [...current.sessions, session],
+        todayPin: { kind: 'session', id: session.id },
+      }));
+      enterSession(session);
+      notify(selectedPlan ? `Sessão ${selectedPlan.name} começou.` : 'Sessão vazia começou.');
+    });
   }
 
   function resumePreviousSession() {
     if (!pendingSessionStart) return;
     const previous = state.sessions.find((session) => session.id === pendingSessionStart.previousSessionId);
     setPendingSessionStart(null);
-    if (previous) enterSession(previous);
+    if (previous) runStartTransition(() => enterSession(previous));
   }
 
   function completePreviousAndStartToday() {
     if (!pendingSessionStart) return;
-    const now = new Date();
     const selectedPlan = pendingSessionStart.planId
       ? state.plans.find((plan) => plan.id === pendingSessionStart.planId)
       : undefined;
     const quickStartName = pendingSessionStart.quickStartName;
-    const nextSession = quickStartName
-      ? createQuickSession(quickStartName, now, makeId)
-      : createSessionFromPlan(selectedPlan, now, makeId);
     const previousSessionId = pendingSessionStart.previousSessionId;
-    mutate((current) => ({
-      ...current,
-      sessions: [
-        ...current.sessions.map((session) =>
-          session.id === previousSessionId ? completeSession(session, now) : session,
-        ),
-        nextSession,
-      ],
-      todayPin: { kind: 'session', id: nextSession.id },
-    }));
     setPendingSessionStart(null);
-    enterSession(nextSession);
-    if (quickStartName) {
-      setPickerMode('add');
-      setPickerSessionExerciseId(null);
-      setPickerSearch('');
-      setPickerMuscleGroups([]);
-      setModal('picker');
-    }
-    notify(quickStartName ? `Sessão ${quickStartName} começou hoje.` : selectedPlan ? `Sessão ${selectedPlan.name} começou hoje.` : 'Sessão vazia começou hoje.');
+    runStartTransition(() => {
+      const now = new Date();
+      const nextSession = quickStartName
+        ? createQuickSession(quickStartName, now, makeId)
+        : createSessionFromPlan(selectedPlan, now, makeId);
+      mutate((current) => ({
+        ...current,
+        sessions: [
+          ...current.sessions.map((session) =>
+            session.id === previousSessionId ? completeSession(session, now) : session,
+          ),
+          nextSession,
+        ],
+        todayPin: { kind: 'session', id: nextSession.id },
+      }));
+      enterSession(nextSession);
+      if (quickStartName) {
+        setPickerMode('add');
+        setPickerSessionExerciseId(null);
+        setPickerSearch('');
+        setPickerMuscleGroups([]);
+        setModal('picker');
+      }
+      notify(quickStartName ? `Sessão ${quickStartName} começou hoje.` : selectedPlan ? `Sessão ${selectedPlan.name} começou hoje.` : 'Sessão vazia começou hoje.');
+    });
   }
 
   function selectExerciseForRegister(exercise: SessionExercise) {
@@ -1008,13 +1044,16 @@ export default function Home() {
             className="essential-start"
             type="button"
             data-testid="start-workout"
+            data-starting={startMotion !== 'idle' ? 'true' : undefined}
+            aria-busy={startMotion !== 'idle'}
+            disabled={startMotion !== 'idle'}
             onClick={() => {
               if (todayInProgressSession) startSession();
               else if (pinnedPlan) startSession(pinnedPlan);
               else startQuickSession();
             }}
           >
-            {todayInProgressSession ? 'Retomar' : 'Começar'}
+            {startMotion !== 'idle' ? <><Activity size={18} aria-hidden="true" /> Preparando treino…</> : todayInProgressSession ? 'Retomar' : 'Começar'}
           </button>
         </section>
         {catalogMeta.error && <div className="essential-warning">{renderWarning()}</div>}
@@ -1188,6 +1227,10 @@ export default function Home() {
   function renderSession() {
     if (!activeSession) return null;
     const currentExercise = activeSession.exercises.find((exercise) => exercise.id === activeExerciseId);
+    const orderedExercises = activeExerciseId
+      ? [...activeSession.exercises].sort((left, right) => Number(right.id === activeExerciseId) - Number(left.id === activeExerciseId))
+      : activeSession.exercises;
+    const sessionDate = capitalizeFirst(formatDateKeyLabel(localDateKey(activeSession.startedAt), { weekday: 'long' }));
     const isQuickSession = activeSession.sourcePlanId === null;
     const inProgress = activeSession.state === 'in_progress';
     const composing = Boolean(currentExercise && currentExercise.status !== 'skipped');
@@ -1198,10 +1241,11 @@ export default function Home() {
     };
 
     return (
-      <div className="essential-session">
+      <div className="essential-session" data-starting={startMotion !== 'idle' ? 'true' : undefined}>
         <main className="essential-session-main">
           <header className="essential-session-header">
             <button className="essential-quiet" type="button" onClick={leaveSession}>Voltar</button>
+            <p className="essential-session-context">{sessionDate}</p>
             <h1 tabIndex={-1}>{activeSession.sourcePlanName ?? 'Sessão vazia'}</h1>
           </header>
 
@@ -1211,7 +1255,7 @@ export default function Home() {
             </div>
           ) : (
             <ul className="essential-session-list">
-              {activeSession.exercises.map((exercise) => {
+              {orderedExercises.map((exercise) => {
                 const display = exercise.performed ?? exercise.planned?.exercise;
                 const plannedName = exercise.planned?.exercise.name;
                 const isActive = activeExerciseId === exercise.id;
@@ -1284,7 +1328,7 @@ export default function Home() {
                               </>
                             )}
                             {inProgress && (
-                              <button className="essential-secondary" type="button" onClick={openAdd}>Adicionar</button>
+                              <button className="essential-secondary" type="button" onClick={openAdd}>Adicionar exercício</button>
                             )}
                             {exercise.status !== null && (
                               <button className="essential-quiet" type="button" onClick={() => undoExercise(exercise.id)}>Desfazer</button>
@@ -1326,17 +1370,17 @@ export default function Home() {
     if (!pendingSessionStart) return null;
     const previous = state.sessions.find((session) => session.id === pendingSessionStart.previousSessionId);
     if (!previous) return null;
+    const previousDate = formatDateKeyLabel(localDateKey(previous.startedAt), { weekday: 'long' });
     return (
-      <div className="essential-sheet-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPendingSessionStart(null); }}>
+      <div className="essential-sheet-backdrop" role="presentation">
         <dialog open className="essential-sheet" aria-modal="true" aria-labelledby="previous-session-modal-title">
           <div className="essential-sheet-head">
             <h2 id="previous-session-modal-title">Treino anterior ainda aberto</h2>
-            <button className="essential-quiet" type="button" onClick={() => setPendingSessionStart(null)}>Agora não</button>
           </div>
           <div className="essential-sheet-body">
-            <p className="essential-exercise-note">{previous.sourcePlanName ?? 'Sessão vazia'} · {formatDateTime(previous.startedAt)}</p>
-            <button className="essential-secondary" type="button" onClick={resumePreviousSession}>Retomar ontem</button>
-            <button className="essential-primary" type="button" onClick={completePreviousAndStartToday}>Encerrar ontem e começar hoje</button>
+            <p className="essential-exercise-note">{previous.sourcePlanName ?? 'Sessão vazia'} · {previousDate} · começou {formatDateTime(previous.startedAt)}. Escolha como continuar.</p>
+            <button className="essential-primary" type="button" onClick={resumePreviousSession}>Continuar treino de {previousDate}</button>
+            <button className="essential-secondary" type="button" onClick={completePreviousAndStartToday}>Encerrar treino de {previousDate} e começar hoje</button>
             <button className="essential-quiet" type="button" onClick={() => setPendingSessionStart(null)}>Agora não</button>
           </div>
         </dialog>
@@ -1429,7 +1473,7 @@ export default function Home() {
     const title = pickerMode === 'plan' ? 'Adicionar à ficha' : pickerMode === 'swap' ? 'Trocar exercício' : 'Adicionar na sessão';
     return (
       <div className="essential-sheet-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setModal(null); }}>
-        <dialog open className="essential-sheet" aria-modal="true" aria-labelledby="picker-modal-title">
+        <dialog open className="essential-sheet" data-starting={startMotion !== 'idle' ? 'true' : undefined} aria-modal="true" aria-labelledby="picker-modal-title">
           <div className="essential-sheet-head">
             <h2 id="picker-modal-title">{title}</h2>
             <button className="essential-quiet" type="button" onClick={() => setModal(null)} aria-label="Fechar">Fechar</button>

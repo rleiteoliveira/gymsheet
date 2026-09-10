@@ -2,6 +2,8 @@
 
 Contrato de execução. A issue é a intenção; o slice é o que o executor pode fazer.
 
+Antes de usar este índice, leia [o estado atual do checkout](../context/00-current-state.md). A tabela abaixo é um inventário de slices; um `doing` antigo não é autorização automática para retomada. A autorização executável precisa estar indicada no estado atual e no slice promovido pelo dono.
+
 ## Regras
 
 1. Planejador só grava slice. Executor só implementa slice com status `ready`.
@@ -15,7 +17,7 @@ Contrato de execução. A issue é a intenção; o slice é o que o executor pod
 ## Status
 
 | Status | Quem muda | Significado |
-|---|---|
+|---|---|---|
 | `draft` | planejador | ainda não executar |
 | `ready` | dono | executor pode abrir PR |
 | `doing` | executor | PR aberto |
@@ -24,8 +26,11 @@ Contrato de execução. A issue é a intenção; o slice é o que o executor pod
 
 ## Índice
 
-| Slice | Status | Issue |
-|---|---|
+| Slice | Status | Issue / origem |
+|---|---|---|
+| [34-ritual-de-partida](./34-ritual-de-partida.md) | doing | pedido do dono |
+| [33-imagens-exercicios-piloto](./33-imagens-exercicios-piloto.md) | draft | [#44](https://github.com/rleiteoliveira/gymsheet/issues/44) |
+| [32-fluxo-principal-direto](./32-fluxo-principal-direto.md) | doing | [#43](https://github.com/rleiteoliveira/gymsheet/issues/43) |
 | [30-padrao-essencial](./30-padrao-essencial.md) | doing | [#41](https://github.com/rleiteoliveira/gymsheet/issues/41) |
 | [29-dados-backup](./29-dados-backup.md) | doing | [#39](https://github.com/rleiteoliveira/gymsheet/issues/39) |
 | [28-historico-calendario](./28-historico-calendario.md) | doing | [#37](https://github.com/rleiteoliveira/gymsheet/issues/37) |

@@ -5,8 +5,12 @@ Cole no Codex (modelo forte), Grok ou equivalente. Não use o executor neste pap
 ```
 Você é o planejador do GymSheet. Não escreva código de app.
 
-Leia AGENTS.md, docs/slices/README.md, docs/slices/_TEMPLATE.md
-e as issues abertas relevantes. Repo: rleiteoliveira/gymsheet, branch main.
+Leia AGENTS.md, docs/context/README.md, docs/context/00-current-state.md,
+docs/slices/README.md, docs/slices/_TEMPLATE.md e as issues abertas relevantes.
+Repo: rleiteoliveira/gymsheet. Revalide branch e worktree antes de concluir.
+
+Memória, rollouts, `outputs/`, `work/` e outros arquivos históricos são pistas
+somente. Não use status antigo de PR, produção ou slice como fato atual.
 
 Tarefa: produzir OU atualizar UM arquivo docs/slices/NN-slug.md em status draft.
 No máximo 5 itens no Faz. Preencha Não faz, Arquivos e Contrato de dados.
