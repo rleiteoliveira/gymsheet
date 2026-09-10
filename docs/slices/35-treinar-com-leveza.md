@@ -1,14 +1,14 @@
 # Slice 35 — Treinar com leveza
 
 - Issue / origem: pedido do dono em 2026-09-10; refinamento de #43
-- Status: doing
+- Status: done
 - Cabe no próximo treino? sim — escolher o treino sem entrar na gestão de fichas e registrar séries com menos conteúdo concorrente.
 
 ## Direção
 
 Inicial: data discreta → nome do treino → Começar/Retomar. Tocar no nome abre Treino livre e fichas existentes, com Gerenciar fichas como saída secundária. Sessão: exercício ativo → Série N → kg/reps → Salvar série. Os demais exercícios ficam compactos. A diversão vem da resposta ao toque e ao registro.
 
-Base verificada: main 1ad0797, CI e deploy verdes, produção com o mesmo buildId. O slice 34 já trouxe animações de partida; esta proposta muda a composição e o feedback durante o treino.
+Base verificada: main 5fd96d4, PR #46 mergeado, CI e deploy verdes, produção com o mesmo buildId. O slice 34 já trouxe animações de partida; esta fatia muda a composição e o feedback durante o treino.
 
 ## Faz
 
