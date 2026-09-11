@@ -19,9 +19,9 @@
 
 ## Evidência remota
 
-- PR [#50](https://github.com/rleiteoliveira/gymsheet/pull/50) foi mergeado em `6139c7418d13d13c124299b71b827a92b7d02bd5` em 2026-09-11.
-- Run [34632659421](https://github.com/rleiteoliveira/gymsheet/actions/runs/34632659421) concluiu `ci` e `deploy` com success; o job remoto executou `Verify production build` com o artefato testado.
-- Consulta independente a `https://gymsheet.rleiteoliveira.workers.dev/build-meta.json` retornou HTTP 200 e o mesmo buildId `6139c7418d13d13c124299b71b827a92b7d02bd5` em 2026-09-11.
+- PR [#50](https://github.com/rleiteoliveira/gymsheet/pull/50) introduziu o slice; o PR [#51](https://github.com/rleiteoliveira/gymsheet/pull/51) corrigiu a corrida entre sugestão e salvamento e fechou a documentação.
+- Run [34635895805](https://github.com/rleiteoliveira/gymsheet/actions/runs/34635895805) concluiu `ci` e `deploy` com success; o job remoto executou `Verify production build` com o artefato corrigido.
+- Consulta independente a `https://gymsheet.rleiteoliveira.workers.dev/build-meta.json` retornou HTTP 200 e o buildId `903ac605e71ce6273cc18daadc32782d8e1223c7` em 2026-09-11.
 
 ## Cobertura relevante
 
