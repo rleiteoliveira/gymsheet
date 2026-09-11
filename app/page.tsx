@@ -702,7 +702,8 @@ export default function Home() {
     setActiveExerciseId(exercise.id);
     setExerciseTransitionId(exercise.id);
     setExerciseEditorOpenId(focusName ? exercise.id : null);
-    setExerciseNameDraft(exercise.performed?.name ?? exercise.planned?.exercise.name ?? `Exercício ${exercise.order + 1}`);
+    const name = exercise.performed?.name ?? exercise.planned?.exercise.name ?? `Exercício ${exercise.order + 1}`;
+    setExerciseNameDraft(name);
     const lastSet = exercise.sets.at(-1);
     const target = exercise.planned;
     setComposerKg(lastSet ? (lastSet.kg === null ? '' : String(lastSet.kg).replace('.', ',')) : target?.targetKg == null ? '' : String(target.targetKg).replace('.', ','));
@@ -765,8 +766,10 @@ export default function Home() {
       notify('Informe um peso válido ou deixe em branco para peso corporal.');
       return;
     }
+    const exerciseNameInput = isQuickSession ? document.getElementById(`exercise-name-${activeExerciseId}`) : null;
+    const currentExerciseName = exerciseNameInput instanceof HTMLInputElement ? exerciseNameInput.value : exerciseNameDraft;
     const draftExercise = isQuickSession ? activeSession.exercises.find((exercise) => exercise.id === activeExerciseId) : undefined;
-    const draftExerciseName = draftExercise ? exerciseNameDraft.trim() || `Exercício ${draftExercise.order + 1}` : '';
+    const draftExerciseName = draftExercise ? currentExerciseName.trim() || `Exercício ${draftExercise.order + 1}` : '';
     const draftCatalogExercise = draftExerciseName
       ? catalog.find((exercise) => exercise.name.toLocaleLowerCase() === draftExerciseName.toLocaleLowerCase())
       : undefined;
@@ -787,7 +790,9 @@ export default function Home() {
         return applySessionEdit(sessionWithName, { type: 'save-set', exerciseId: activeExerciseId, set });
       }),
     }));
-    if (draftExerciseName) setExerciseNameDraft(draftExerciseName);
+    if (draftExerciseName) {
+      setExerciseNameDraft(draftExerciseName);
+    }
     setSavedExerciseId(activeExerciseId);
     notifySessionChange(activeSession, 'Série salva.');
   }

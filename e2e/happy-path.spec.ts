@@ -101,6 +101,7 @@ test('começa livre, persiste série, recarrega, retoma o mesmo ID e conclui no 
   await expect(page.locator('button.essential-exercise-suggestion').filter({ hasText: 'Barbell Bench Press - Medium Grip' })).toBeVisible();
   await page.locator('button.essential-exercise-suggestion').filter({ hasText: 'Barbell Bench Press - Medium Grip' }).click();
   await expect(exerciseName).toHaveValue('Barbell Bench Press - Medium Grip');
+  await expect.poll(async () => (await readState(page)).sessions[0]?.exercises[0]?.performed?.name).toBe('Barbell Bench Press - Medium Grip');
   await expect(page.getByLabel('Peso em quilogramas')).toHaveValue('');
   await expect(page.getByLabel('Repetições', { exact: true })).toHaveValue('');
   await page.getByTestId('quick-set-done').click();

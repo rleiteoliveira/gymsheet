@@ -1,27 +1,27 @@
 # Estado atual — GymSheet
 
-- context_level: NOW
-- observed_at: 2026-09-10, America/Fortaleza
+- `context_level`: `NOW`
+- `observed_at`: 2026-09-11, America/Fortaleza
 - Revalidar no início de cada tarefa; fatos vivos prevalecem sobre este snapshot.
 
 ## Checkout e entrega observados
 
-- main recebeu o merge do PR #48 no commit de feature `99d7f99fcab54978951f06f22166623851efb28c`.
-- PR #45, PR #46 e PR #48 estão mergeados; main contém o refinamento do fluxo, ritual de partida, Treinar com leveza e o tempo do treino.
-- Run https://github.com/rleiteoliveira/gymsheet/actions/runs/34503773215: ci e deploy com success para o commit de feature.
-- Produção consultada após o deploy: buildId `99d7f99fcab54978951f06f22166623851efb28c`; HTTP 200; título `GymSheet`.
-- output/ e test-results/ preexistentes preservados; ignorados conforme main.
+- `main` local e `origin/main` estão no commit `6139c7418d13d13c124299b71b827a92b7d02bd5`, merge do PR [#50](https://github.com/rleiteoliveira/gymsheet/pull/50).
+- O slice [38 — registro rápido como companion](../slices/38-registro-rapido.md) está `done` após CI e deploy verdes.
+- Run [34632659421](https://github.com/rleiteoliveira/gymsheet/actions/runs/34632659421): jobs `ci` e `deploy` com success; o artefato passou lint, TypeScript, unit, build, verify:build e 17 E2E.
+- Produção consultada após o deploy: `https://gymsheet.rleiteoliveira.workers.dev`, HTTP 200, buildId `6139c7418d13d13c124299b71b827a92b7d02bd5`.
 
-## Pedido atual
+## Produto publicado
 
-Reestruturação da inicial e treino, menor densidade e animações leves foi implementada e publicada. [Slice 35](../slices/35-treinar-com-leveza.md) está `done` após PR #46, CI verde, merge e deploy.
-
-Revalidação em 2026-09-10: checkout e remoto main em `3d72bb7d866d9a92c41a952a955a865c7ddeeb9c` (fechamento documental via PR #47). Produção serve o mesmo buildId com HTTP 200; run [34499101722](https://github.com/rleiteoliveira/gymsheet/actions/runs/34499101722) tem jobs ci e deploy com success. Não foram repetidos testes locais nesta rodada de planejamento.
-
-Pedido concluído: horário de registro das séries e cronômetro até finalizar. [Slice 36 — Tempo do treino](../slices/36-tempo-do-treino.md) foi promovido a `ready` pelo dono, mergeado no PR #48 e está `done` após CI/deploy verdes e avaliação pós-deploy. Usa savedAt/startedAt/completedAt existentes, sem migração; nenhum ajuste adicional foi necessário.
+- Treino livre começa direto na sessão, sem nome obrigatório ou picker intermediário.
+- O nome opcional usa `Treino · dia data` como placeholder e só grava texto quando o usuário digita.
+- O treino livre começa com `Exercício 1`; os próximos são numerados e editáveis.
+- O exercício é um combobox de texto livre com sugestões do catálogo e filtros múltiplos por grupo muscular.
+- Peso e repetições começam vazios no treino livre; deixar ambos vazios salva `kg: null` e `reps: 0`.
+- Fichas planejadas, troca e adição pelo picker permanecem separadas e cobertas.
 
 ## Limites
 
+- Não há IA, prescrição ou sugestão de carga/repetições nesta entrega.
 - Slice 33 continua draft; não implementar imagens por inferência.
-- doing antigos no índice não autorizam novas mudanças.
-- Imagens não entram nesta entrega.
+- `output/`, `test-results/` e `.playwright-cli/` são artefatos auxiliares, não fonte de verdade.
