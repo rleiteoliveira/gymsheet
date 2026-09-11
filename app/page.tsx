@@ -25,7 +25,9 @@ import {
   applySessionEdit,
   clonePlanExercise,
   completeSession,
-  createQuickSession,
+  createCustomExerciseSnapshot,
+  createQuickExercise,
+  createQuickSessionWithStarter,
   createSessionFromPlan,
   decideSessionStart,
   localCivilDateTime,
@@ -64,7 +66,7 @@ interface CatalogState {
 interface PendingSessionStart {
   previousSessionId: string;
   planId: string | null;
-  quickStartName?: string;
+  quickStartName?: string | null;
 }
 
 const EMPTY_STATE: AppState = { plans: [], sessions: [], todayPin: null };
@@ -116,6 +118,11 @@ function formatDateKeyLabel(dateKey: string, options: Intl.DateTimeFormatOptions
     month: 'long',
     ...options,
   }).format(parseLocalDateKey(dateKey));
+}
+
+function sessionDisplayName(session: Session) {
+  if (session.sourcePlanName) return session.sourcePlanName;
+  return session.sourcePlanId === null ? suggestedSessionName(new Date(session.startedAt)) : 'Sessão vazia';
 }
 
 function formatKg(value: number | null | undefined) {
@@ -268,12 +275,15 @@ export default function Home() {
   }, [navigationVersion]);
   const [sessionViewId, setSessionViewId] = useState<string | null>(null);
   const [activeExerciseId, setActiveExerciseId] = useState<string | null>(null);
+  const [exerciseEditorOpenId, setExerciseEditorOpenId] = useState<string | null>(null);
+  const [exerciseNameDraft, setExerciseNameDraft] = useState('');
   const [composerKg, setComposerKg] = useState('');
   const [composerReps, setComposerReps] = useState('');
   const [modal, setModal] = useState<Modal>(null);
   const [pickerMode, setPickerMode] = useState<PickerMode>('plan');
   const [pickerSearch, setPickerSearch] = useState('');
   const [pickerMuscleGroups, setPickerMuscleGroups] = useState<string[]>([]);
+  const [exerciseMuscleGroups, setExerciseMuscleGroups] = useState<string[]>([]);
   const [pickerSessionExerciseId, setPickerSessionExerciseId] = useState<string | null>(null);
   const [draft, setDraft] = useState<PlanDraft | null>(null);
   const [pendingSessionStart, setPendingSessionStart] = useState<PendingSessionStart | null>(null);
@@ -301,6 +311,8 @@ export default function Home() {
     setState(next);
     setSessionViewId(null);
     setActiveExerciseId(null);
+    setExerciseEditorOpenId(null);
+    setExerciseNameDraft('');
     setPendingSessionStart(null);
     setModal(null);
     setDraft(null);
@@ -496,14 +508,16 @@ export default function Home() {
     setSessionViewId(session.id);
     if (session.state !== 'in_progress') {
       setActiveExerciseId(null);
+      setExerciseEditorOpenId(null);
       setComposerKg('');
       setComposerReps('');
       return;
     }
     const target = session.exercises.find((exercise) => exercise.status === null) ?? session.exercises[0];
-    if (target) selectExerciseForRegister(target);
+    if (target) selectExerciseForRegister(target, session.sourcePlanId === null && target.status === null && target.sets.length === 0);
     else {
       setActiveExerciseId(null);
+      setExerciseEditorOpenId(null);
       setComposerKg('');
       setComposerReps('');
     }
@@ -523,34 +537,37 @@ export default function Home() {
       setPendingSessionStart({
         previousSessionId: decision.session.id,
         planId: null,
-        quickStartName: suggestedSessionName(now),
+        quickStartName: null,
       });
       setModal(null);
       return;
     }
 
     runStartTransition(() => {
-      const session = createQuickSession(suggestedSessionName(now), now, makeId);
+      const session = createQuickSessionWithStarter(null, now, makeId);
       mutate((current) => ({
         ...current,
         sessions: [...current.sessions, session],
         todayPin: { kind: 'session', id: session.id },
       }));
       enterSession(session);
-      setPickerMode('add');
-      setPickerSessionExerciseId(null);
-      setPickerSearch('');
-      setPickerMuscleGroups([]);
-      setModal('picker');
-      notify('Treino começou. Escolha um exercício.');
+      setModal(null);
+      notify('Treino começou. Registre a primeira série.');
     });
   }
 
-  function openQuickExercisePicker() {
-    setPickerMode('add');
-    setPickerSessionExerciseId(null);
-    setPickerSearch('');
-    setModal('picker');
+  function addQuickExercise() {
+    if (!activeSession || activeSession.sourcePlanId !== null || activeSession.state !== 'in_progress') return;
+    const next = createQuickExercise(activeSession.exercises.length, makeId);
+    mutate((current) => ({
+      ...current,
+      sessions: current.sessions.map((session) =>
+        session.id === activeSession.id ? applySessionEdit(session, { type: 'add', exercise: next }) : session,
+      ),
+    }));
+    setExerciseEditorOpenId(next.id);
+    selectExerciseForRegister(next, true);
+    notify('Próximo exercício adicionado.');
   }
 
   function togglePickerMuscle(groupId: string) {
@@ -657,12 +674,13 @@ export default function Home() {
       ? state.plans.find((plan) => plan.id === pendingSessionStart.planId)
       : undefined;
     const quickStartName = pendingSessionStart.quickStartName;
+    const isQuickStart = quickStartName !== undefined;
     const previousSessionId = pendingSessionStart.previousSessionId;
     setPendingSessionStart(null);
     runStartTransition(() => {
       const now = new Date();
-      const nextSession = quickStartName
-        ? createQuickSession(quickStartName, now, makeId)
+      const nextSession = isQuickStart
+        ? createQuickSessionWithStarter(quickStartName ?? null, now, makeId)
         : createSessionFromPlan(selectedPlan, now, makeId);
       mutate((current) => ({
         ...current,
@@ -675,25 +693,62 @@ export default function Home() {
         todayPin: { kind: 'session', id: nextSession.id },
       }));
       enterSession(nextSession);
-      if (quickStartName) {
-        setPickerMode('add');
-        setPickerSessionExerciseId(null);
-        setPickerSearch('');
-        setPickerMuscleGroups([]);
-        setModal('picker');
-      }
-      notify(quickStartName ? `Sessão ${quickStartName} começou hoje.` : selectedPlan ? `Sessão ${selectedPlan.name} começou hoje.` : 'Sessão vazia começou hoje.');
+      setModal(null);
+      notify(isQuickStart ? 'Treino começou hoje. Registre a primeira série.' : selectedPlan ? `Sessão ${selectedPlan.name} começou hoje.` : 'Sessão vazia começou hoje.');
     });
   }
 
-  function selectExerciseForRegister(exercise: SessionExercise) {
+  function selectExerciseForRegister(exercise: SessionExercise, focusName = false) {
     setActiveExerciseId(exercise.id);
     setExerciseTransitionId(exercise.id);
+    setExerciseEditorOpenId(focusName ? exercise.id : null);
+    setExerciseNameDraft(exercise.performed?.name ?? exercise.planned?.exercise.name ?? `Exercício ${exercise.order + 1}`);
     const lastSet = exercise.sets.at(-1);
     const target = exercise.planned;
     setComposerKg(lastSet ? (lastSet.kg === null ? '' : String(lastSet.kg).replace('.', ',')) : target?.targetKg == null ? '' : String(target.targetKg).replace('.', ','));
     setComposerReps(lastSet ? String(lastSet.reps) : target ? String(target.targetReps) : '');
-    window.setTimeout(() => document.querySelector<HTMLInputElement>('#composer-kg')?.focus(), 0);
+    window.setTimeout(() => {
+      const element = focusName ? document.getElementById(`exercise-name-${exercise.id}`) : document.querySelector<HTMLInputElement>('#composer-kg');
+      element?.focus();
+    }, 0);
+  }
+
+  function updateQuickSessionName(value: string) {
+    if (!activeSession || activeSession.sourcePlanId !== null || activeSession.state !== 'in_progress') return;
+    mutate((current) => ({
+      ...current,
+      sessions: current.sessions.map((session) =>
+        session.id === activeSession.id ? { ...session, sourcePlanName: value || null } : session,
+      ),
+    }));
+  }
+
+  function toggleExerciseMuscle(groupId: string) {
+    setExerciseMuscleGroups((current) => current.includes(groupId)
+      ? current.filter((item) => item !== groupId)
+      : [...current, groupId]);
+  }
+
+  function updateQuickExerciseName(value: string) {
+    if (!activeSession || activeSession.sourcePlanId !== null || activeSession.state !== 'in_progress') return;
+    setExerciseNameDraft(value);
+  }
+
+  function commitQuickExerciseName(exerciseId: string, value = exerciseNameDraft) {
+    if (!activeSession || activeSession.sourcePlanId !== null || activeSession.state !== 'in_progress') return;
+    const exercise = activeSession.exercises.find((item) => item.id === exerciseId);
+    if (!exercise) return;
+    const fallbackName = `Exercício ${exercise.order + 1}`;
+    const name = value.trim() || fallbackName;
+    const catalogExercise = catalog.find((item) => item.name.toLocaleLowerCase() === name.toLocaleLowerCase());
+    const performed = catalogExercise ? toSnapshot(catalogExercise) : createCustomExerciseSnapshot(exerciseId, name);
+    mutate((current) => ({
+      ...current,
+      sessions: current.sessions.map((session) =>
+        session.id === activeSession.id ? applySessionEdit(session, { type: 'set-exercise', exerciseId, performed }) : session,
+      ),
+    }));
+    setExerciseNameDraft(name);
   }
 
   function saveSet() {
@@ -710,6 +765,14 @@ export default function Home() {
       notify('Informe um peso válido ou deixe em branco para peso corporal.');
       return;
     }
+    const draftExercise = isQuickSession ? activeSession.exercises.find((exercise) => exercise.id === activeExerciseId) : undefined;
+    const draftExerciseName = draftExercise ? exerciseNameDraft.trim() || `Exercício ${draftExercise.order + 1}` : '';
+    const draftCatalogExercise = draftExerciseName
+      ? catalog.find((exercise) => exercise.name.toLocaleLowerCase() === draftExerciseName.toLocaleLowerCase())
+      : undefined;
+    const draftPerformed = draftExercise
+      ? draftCatalogExercise ? toSnapshot(draftCatalogExercise) : createCustomExerciseSnapshot(draftExercise.id, draftExerciseName)
+      : undefined;
     const now = new Date().toISOString();
     mutate((current) => ({
       ...current,
@@ -718,9 +781,13 @@ export default function Home() {
         const exercise = session.exercises.find((item) => item.id === activeExerciseId);
         if (!exercise) return session;
         const set: SetRecord = { id: makeId(), index: exercise.sets.length + 1, kg, reps, savedAt: now };
-        return applySessionEdit(session, { type: 'save-set', exerciseId: activeExerciseId, set });
+        const sessionWithName = draftPerformed
+          ? applySessionEdit(session, { type: 'set-exercise', exerciseId: activeExerciseId, performed: draftPerformed })
+          : session;
+        return applySessionEdit(sessionWithName, { type: 'save-set', exerciseId: activeExerciseId, set });
       }),
     }));
+    if (draftExerciseName) setExerciseNameDraft(draftExerciseName);
     setSavedExerciseId(activeExerciseId);
     notifySessionChange(activeSession, 'Série salva.');
   }
@@ -773,6 +840,8 @@ export default function Home() {
     }));
     setSessionViewId(null);
     setActiveExerciseId(null);
+    setExerciseEditorOpenId(null);
+    setExerciseNameDraft('');
     setTab('today');
     notifySessionChange(activeSession, 'Sessão finalizada e salva.');
   }
@@ -789,6 +858,8 @@ export default function Home() {
     if (sessionViewId === target.id) {
       setSessionViewId(null);
       setActiveExerciseId(null);
+      setExerciseEditorOpenId(null);
+      setExerciseNameDraft('');
     }
     notify('Sessão descartada.');
   }
@@ -1049,7 +1120,7 @@ export default function Home() {
 
   function renderToday() {
     const workoutName = todayInProgressSession
-      ? todayInProgressSession.sourcePlanName ?? 'Sessão vazia'
+      ? sessionDisplayName(todayInProgressSession)
       : pinnedPlan ? (pinnedPlan.emoji ? pinnedPlan.emoji + ' ' : '') + pinnedPlan.name : 'Treino livre';
     return (
       <main className="essential-main">
@@ -1100,7 +1171,7 @@ export default function Home() {
                 return (
                   <li className="essential-plan" key={session.id}>
                     <div className="essential-plan-copy">
-                      <h2>{session.sourcePlanName ?? 'Sessão vazia'}</h2>
+                      <h2>{sessionDisplayName(session)}</h2>
                       <p>{formatDateTime(session.startedAt)} · {series} {series === 1 ? 'série' : 'séries'}{session.state === 'in_progress' ? ' · em andamento' : ''}</p>
                     </div>
                     {session.state === 'in_progress' && (
@@ -1205,7 +1276,7 @@ export default function Home() {
                 return (
                   <li className="essential-plan" key={session.id}>
                     <div className="essential-plan-copy">
-                      <h3>{plan?.emoji ? `${plan.emoji} ` : ''}{session.sourcePlanName ?? 'Sessão vazia'}</h3>
+                      <h3>{plan?.emoji ? `${plan.emoji} ` : ''}{sessionDisplayName(session)}</h3>
                       <p>{formatDateTime(session.startedAt)} · {series} {series === 1 ? 'série' : 'séries'} · {session.state === 'in_progress' ? 'em andamento' : 'Concluída'}</p>
                     </div>
                     <button className="essential-secondary" type="button" onClick={() => openSession(session.id)}>
@@ -1259,10 +1330,11 @@ export default function Home() {
     const sessionDate = capitalizeFirst(formatDateKeyLabel(localDateKey(activeSession.startedAt), { weekday: 'long' }));
     const isQuickSession = activeSession.sourcePlanId === null;
     const inProgress = activeSession.state === 'in_progress';
-    const openAdd = isQuickSession ? openQuickExercisePicker : () => openPicker('add');
+    const openAdd = isQuickSession ? addQuickExercise : () => openPicker('add');
     const leaveSession = () => {
       setSessionViewId(null);
       setActiveExerciseId(null);
+      setExerciseEditorOpenId(null);
     };
 
     return (
@@ -1271,7 +1343,20 @@ export default function Home() {
           <header className="essential-session-header">
             <button className="essential-quiet" type="button" onClick={leaveSession}>Voltar</button>
             <p className="essential-session-context">{sessionDate}</p>
-            <h1 tabIndex={-1}>{activeSession.sourcePlanName ?? 'Sessão vazia'}</h1>
+            <h1 tabIndex={-1}>
+              {isQuickSession && inProgress ? (
+                <input
+                  className="essential-session-name-input"
+                  data-testid="session-name"
+                  type="text"
+                  value={activeSession.sourcePlanName ?? ''}
+                  placeholder={suggestedSessionName(new Date(activeSession.startedAt))}
+                  aria-label="Nome do treino (opcional)"
+                  onChange={(event) => updateQuickSessionName(event.target.value)}
+                  onBlur={() => updateQuickSessionName(activeSession.sourcePlanName?.trim() ?? '')}
+                />
+              ) : sessionDisplayName(activeSession)}
+            </h1>
             <WorkoutTimer startedAt={activeSession.startedAt} completedAt={activeSession.completedAt} state={activeSession.state} />
           </header>
 
@@ -1286,6 +1371,13 @@ export default function Home() {
                   const display = exercise.performed ?? exercise.planned?.exercise;
                   const plannedName = exercise.planned?.exercise.name;
                   const isActive = activeExerciseId === exercise.id;
+                  const exerciseEditorOpen = exerciseEditorOpenId === exercise.id;
+                  const suggestionName = isActive && isQuickSession ? exerciseNameDraft : display?.name ?? '';
+                  const suggestionQuery = /^Exercício \d+$/.test(suggestionName) ? '' : suggestionName;
+                  const exerciseSuggestions = rankCatalogExercises(
+                    filterCatalogExercises(catalog, suggestionQuery, exerciseMuscleGroups),
+                    favoriteScores,
+                  ).slice(0, 8);
                   const setLabel = exercise.sets.length === 1 ? '1 série' : `${exercise.sets.length} séries`;
                   return (
                     <li key={exercise.id}>
@@ -1309,6 +1401,85 @@ export default function Home() {
                         )}
                         {isActive && (
                           <>
+                            {isQuickSession && inProgress && display && (
+                              <div className="essential-exercise-editor" data-testid="exercise-editor">
+                                <label className="essential-field" htmlFor={`exercise-name-${exercise.id}`}>
+                                  <span>Exercício</span>
+                                  <input
+                                    id={`exercise-name-${exercise.id}`}
+                                    className="essential-input"
+                                    type="text"
+                                    role="combobox"
+                                    aria-label={`Exercício ${exercise.order + 1}`}
+                                    aria-autocomplete="list"
+                                    aria-expanded={exerciseEditorOpen}
+                                    aria-controls={`exercise-suggestions-${exercise.id}`}
+                                    value={exerciseNameDraft}
+                                    onFocus={() => setExerciseEditorOpenId(exercise.id)}
+                                    onChange={(event) => {
+                                      setExerciseEditorOpenId(exercise.id);
+                                      updateQuickExerciseName(event.target.value);
+                                    }}
+                                    onBlur={() => window.setTimeout(() => {
+                                      const editor = document.querySelector<HTMLElement>('[data-testid="exercise-editor"]');
+                                      if (editor?.contains(document.activeElement)) return;
+                                      commitQuickExerciseName(exercise.id);
+                                      setExerciseEditorOpenId((current) => current === exercise.id ? null : current);
+                                    }, 120)}
+                                    onKeyDown={(event) => {
+                                      if (event.key === 'Escape') setExerciseEditorOpenId(null);
+                                      if (event.key === 'Enter') {
+                                        event.preventDefault();
+                                        commitQuickExerciseName(exercise.id);
+                                        setExerciseEditorOpenId(null);
+                                      }
+                                    }}
+                                  />
+                                </label>
+                                {exerciseEditorOpen && (
+                                  <>
+                                    <fieldset className="essential-chips essential-exercise-filters">
+                                      <legend className="essential-visually-hidden">Filtrar sugestões por grupo muscular</legend>
+                                      {pickerMuscleOptions.map((group) => (
+                                        <label className={exerciseMuscleGroups.includes(group.id) ? 'essential-checkbox-chip active' : 'essential-checkbox-chip'} key={group.id}>
+                                          <input
+                                            type="checkbox"
+                                            aria-label={`Filtrar sugestões por ${group.label}`}
+                                            checked={exerciseMuscleGroups.includes(group.id)}
+                                            onChange={() => toggleExerciseMuscle(group.id)}
+                                          />
+                                          <span>{group.label}</span>
+                                        </label>
+                                      ))}
+                                      {exerciseMuscleGroups.length > 0 && (
+                                        <button className="essential-quiet essential-clear-filter" type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => setExerciseMuscleGroups([])}>Limpar</button>
+                                      )}
+                                    </fieldset>
+                                    <p className="essential-exercise-note">
+                                      {exerciseMuscleGroups.length ? `Sugestões: ${exerciseMuscleGroups.map((groupId) => pickerMuscleOptions.find((group) => group.id === groupId)?.label).filter(Boolean).join(' + ')}` : 'Sugestões do catálogo'}
+                                    </p>
+                                    <div id={`exercise-suggestions-${exercise.id}`} className="essential-exercise-suggestions">
+                                      {exerciseSuggestions.map((suggestion) => (
+                                        <button
+                                          className="essential-exercise-suggestion"
+                                          type="button"
+                                          key={suggestion.id}
+                                          onMouseDown={(event) => event.preventDefault()}
+                                          onClick={() => {
+                                            commitQuickExerciseName(exercise.id, suggestion.name);
+                                            setExerciseEditorOpenId(null);
+                                          }}
+                                        >
+                                          <strong>{suggestion.name}</strong>
+                                          <span>{localizeMuscle(suggestion.primaryMuscles[0])} · {localizeEquipment(suggestion.equipment)}</span>
+                                        </button>
+                                      ))}
+                                      {!exerciseSuggestions.length && <p className="essential-exercise-note">Nenhuma sugestão. Você pode manter este nome.</p>}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            )}
                             {exercise.sets.length > 0 && (
                               <ul className="essential-set-list">
                                 {exercise.sets.map((set) => (
@@ -1383,7 +1554,7 @@ export default function Home() {
                   );
                 })}
               </ul>
-              {inProgress && <button className="essential-secondary essential-add-exercise" type="button" onClick={openAdd}>Adicionar exercício</button>}
+              {inProgress && <button className="essential-secondary essential-add-exercise" data-testid={isQuickSession ? 'next-exercise' : 'add-exercise'} type="button" onClick={openAdd}>{isQuickSession ? 'Próximo exercício' : 'Adicionar exercício'}</button>}
             </>
           )}
 
@@ -1425,7 +1596,7 @@ export default function Home() {
             <h2 id="previous-session-modal-title">Treino anterior ainda aberto</h2>
           </div>
           <div className="essential-sheet-body">
-            <p className="essential-exercise-note">{previous.sourcePlanName ?? 'Sessão vazia'} · {previousDate} · começou {formatDateTime(previous.startedAt)}. Escolha como continuar.</p>
+            <p className="essential-exercise-note">{sessionDisplayName(previous)} · {previousDate} · começou {formatDateTime(previous.startedAt)}. Escolha como continuar.</p>
             <button className="essential-primary" type="button" onClick={resumePreviousSession}>Continuar treino de {previousDate}</button>
             <button className="essential-secondary" type="button" onClick={completePreviousAndStartToday}>Encerrar treino de {previousDate} e começar hoje</button>
             <button className="essential-quiet" type="button" onClick={() => setPendingSessionStart(null)}>Agora não</button>

@@ -7,7 +7,7 @@ import type {
   SetRecord,
 } from './types';
 
-type IdFactory = () => string;
+export type IdFactory = () => string;
 
 export type SessionStartDecision =
   | { kind: 'create' }
@@ -18,6 +18,7 @@ export type SessionEdit =
   | { type: 'save-set'; exerciseId: string; set: SetRecord }
   | { type: 'skip'; exerciseId: string }
   | { type: 'undo'; exerciseId: string }
+  | { type: 'set-exercise'; exerciseId: string; performed: ExerciseSnapshot }
   | { type: 'swap'; exerciseId: string; performed: ExerciseSnapshot }
   | { type: 'add'; exercise: SessionExercise };
 
@@ -102,7 +103,7 @@ export function createSessionFromPlan(plan: Plan | undefined, startedAt: Date, m
   };
 }
 
-export function createQuickSession(name: string, startedAt: Date, makeId: IdFactory): Session {
+export function createQuickSession(name: string | null, startedAt: Date, makeId: IdFactory): Session {
   return {
     id: makeId(),
     sourcePlanId: null,
@@ -112,6 +113,36 @@ export function createQuickSession(name: string, startedAt: Date, makeId: IdFact
     completedAt: null,
     exercises: [],
   };
+}
+
+export function createCustomExerciseSnapshot(id: string, name: string): ExerciseSnapshot {
+  return {
+    id: `custom-${id}`,
+    name,
+    equipment: null,
+    primaryMuscles: [],
+    images: [],
+    instructions: [],
+    category: 'strength',
+    mechanic: null,
+  };
+}
+
+export function createQuickExercise(order: number, makeId: IdFactory): SessionExercise {
+  const id = makeId();
+  return {
+    id,
+    order,
+    planned: null,
+    performed: createCustomExerciseSnapshot(id, `Exercício ${order + 1}`),
+    status: null,
+    sets: [],
+  };
+}
+
+export function createQuickSessionWithStarter(name: string | null, startedAt: Date, makeId: IdFactory): Session {
+  const session = createQuickSession(name, startedAt, makeId);
+  return { ...session, exercises: [createQuickExercise(0, makeId)] };
 }
 
 export function applySessionEdit(session: Session, edit: SessionEdit): Session {
@@ -141,6 +172,9 @@ export function applySessionEdit(session: Session, edit: SessionEdit): Session {
       }
       if (edit.type === 'undo') {
         return { ...exercise, status: null, performed: null, sets: [] };
+      }
+      if (edit.type === 'set-exercise') {
+        return { ...exercise, performed: cloneExerciseSnapshot(edit.performed) };
       }
       return {
         ...exercise,

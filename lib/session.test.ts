@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applySessionEdit,
   completeSession,
+  createQuickSessionWithStarter,
   createQuickSession,
   createSessionFromPlan,
   decideSessionStart,
@@ -103,6 +104,39 @@ describe('dia civil local', () => {
 });
 
 describe('snapshot e edição da sessão', () => {
+  it('abre treino rápido sem nome e com o primeiro exercício editável', () => {
+    const startedAt = new Date('2026-08-30T09:00:00-03:00');
+    const session = createQuickSessionWithStarter(null, startedAt, sequentialIds('quick'));
+
+    expect(session.sourcePlanName).toBeNull();
+    expect(session.exercises).toHaveLength(1);
+    expect(session.exercises[0]).toMatchObject({
+      order: 0,
+      planned: null,
+      performed: { name: 'Exercício 1' },
+      status: null,
+      sets: [],
+    });
+  });
+
+  it('renomeia o exercício livre sem exigir catálogo nem série preenchida', () => {
+    let session = createQuickSessionWithStarter(null, new Date('2026-08-30T09:00:00-03:00'), sequentialIds('quick'));
+    const exercise = session.exercises[0];
+    session = applySessionEdit(session, {
+      type: 'set-exercise',
+      exerciseId: exercise.id,
+      performed: { ...exercise.performed!, id: 'custom-name', name: 'Supino livre' },
+    });
+    session = applySessionEdit(session, {
+      type: 'save-set',
+      exerciseId: exercise.id,
+      set: { id: 'set-empty', index: 1, kg: null, reps: 0, savedAt: '2026-08-30T12:00:00.000Z' },
+    });
+
+    expect(session.exercises[0].performed?.name).toBe('Supino livre');
+    expect(session.exercises[0].sets[0]).toMatchObject({ kg: null, reps: 0 });
+  });
+
   it('salva série opcional na sessão rápida sem alterar uma ficha', () => {
     const plan = makePlan();
     const originalPlan = structuredClone(plan);
