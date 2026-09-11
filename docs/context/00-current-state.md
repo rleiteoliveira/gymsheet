@@ -6,10 +6,11 @@
 
 ## Checkout e entrega observados
 
-- `main` local e `origin/main` estão no commit `6139c7418d13d13c124299b71b827a92b7d02bd5`, merge do PR [#50](https://github.com/rleiteoliveira/gymsheet/pull/50).
+- O runtime do slice 38 entrou no PR [#50](https://github.com/rleiteoliveira/gymsheet/pull/50); o fix de persistência e o fechamento documental entraram no PR [#51](https://github.com/rleiteoliveira/gymsheet/pull/51).
 - O slice [38 — registro rápido como companion](../slices/38-registro-rapido.md) está `done` após CI e deploy verdes.
-- Run [34632659421](https://github.com/rleiteoliveira/gymsheet/actions/runs/34632659421): jobs `ci` e `deploy` com success; o artefato passou lint, TypeScript, unit, build, verify:build e 17 E2E.
-- Produção consultada após o deploy: `https://gymsheet.rleiteoliveira.workers.dev`, HTTP 200, buildId `6139c7418d13d13c124299b71b827a92b7d02bd5`.
+- Run [34635895805](https://github.com/rleiteoliveira/gymsheet/actions/runs/34635895805): jobs `ci` e `deploy` com success; o artefato passou lint, TypeScript, unit, build, verify:build e 17 E2E após o fix.
+- Produção consultada após o deploy corrigido: `https://gymsheet.rleiteoliveira.workers.dev`, HTTP 200, buildId `903ac605e71ce6273cc18daadc32782d8e1223c7`.
+- Fechamentos documentais posteriores podem atualizar apenas o buildId publicado; não alteram o runtime descrito nesta seção.
 
 ## Produto publicado
 
