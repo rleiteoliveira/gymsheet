@@ -1,7 +1,7 @@
 # Slice 39 — registro mínimo no treino livre
 
 - Issue: pedido do dono em 2026-09-11
-- Status: doing
+- Status: done
 - Cabe no próximo treino? sim
 
 ## Faz
@@ -38,3 +38,9 @@
 ## Débito
 
 - Informações de carga/repetições poderão voltar em uma interação posterior baseada em uso observado.
+
+## Evidência de entrega
+
+- PR [#53](https://github.com/rleiteoliveira/gymsheet/pull/53) integrado após CI verde.
+- Run [34642351891](https://github.com/rleiteoliveira/gymsheet/actions/runs/34642351891) concluiu `ci` e `deploy` com success; os 17 E2E passaram.
+- Produção consultada em 2026-09-11: HTTP 200 em `https://gymsheet.rleiteoliveira.workers.dev/build-meta.json`, buildId `ad13d8d381f47b253c1e98dfd67e92dcc9552e76`.
