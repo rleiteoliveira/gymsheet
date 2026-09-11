@@ -1,16 +1,16 @@
 # Slice 38 — registro rápido como companion
 
 - Issue: pedido do dono em 2026-09-11
-- Status: doing
+- Status: done
 - Cabe no próximo treino? sim
 
 ## Faz
 
-- [ ] Iniciar treino livre sem nome obrigatório, usando `Treino · dia data` como placeholder persistente da interface.
-- [ ] Abrir o treino livre já com `Exercício 1` e criar os próximos exercícios numerados.
-- [ ] Permitir nome livre ou escolha do catálogo por combobox editável, com filtros múltiplos por grupo muscular.
-- [ ] Manter peso e repetições vazios no treino livre e salvar a série sem preenchimento como peso corporal e zero repetições.
-- [ ] Cobrir o caminho rápido com unit e E2E e publicar apenas o artefato validado.
+- [x] Iniciar treino livre sem nome obrigatório, usando `Treino · dia data` como placeholder persistente da interface.
+- [x] Abrir o treino livre já com `Exercício 1` e criar os próximos exercícios numerados.
+- [x] Permitir nome livre ou escolha do catálogo por combobox editável, com filtros múltiplos por grupo muscular.
+- [x] Manter peso e repetições vazios no treino livre e salvar a série sem preenchimento como peso corporal e zero repetições.
+- [x] Cobrir o caminho rápido com unit e E2E e publicar apenas o artefato validado.
 
 ## Não faz
 
