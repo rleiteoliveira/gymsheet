@@ -1425,12 +1425,6 @@ export default function Home() {
                                       setExerciseEditorOpenId(exercise.id);
                                       updateQuickExerciseName(event.target.value);
                                     }}
-                                    onBlur={() => window.setTimeout(() => {
-                                      const editor = document.querySelector<HTMLElement>('[data-testid="exercise-editor"]');
-                                      if (editor?.contains(document.activeElement)) return;
-                                      commitQuickExerciseName(exercise.id);
-                                      setExerciseEditorOpenId((current) => current === exercise.id ? null : current);
-                                    }, 120)}
                                     onKeyDown={(event) => {
                                       if (event.key === 'Escape') setExerciseEditorOpenId(null);
                                       if (event.key === 'Enter') {
