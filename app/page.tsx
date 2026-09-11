@@ -25,7 +25,6 @@ import {
   applySessionEdit,
   clonePlanExercise,
   completeSession,
-  createCustomExerciseSnapshot,
   createQuickExercise,
   createQuickSessionWithStarter,
   createSessionFromPlan,
@@ -275,15 +274,12 @@ export default function Home() {
   }, [navigationVersion]);
   const [sessionViewId, setSessionViewId] = useState<string | null>(null);
   const [activeExerciseId, setActiveExerciseId] = useState<string | null>(null);
-  const [exerciseEditorOpenId, setExerciseEditorOpenId] = useState<string | null>(null);
-  const [exerciseNameDraft, setExerciseNameDraft] = useState('');
   const [composerKg, setComposerKg] = useState('');
   const [composerReps, setComposerReps] = useState('');
   const [modal, setModal] = useState<Modal>(null);
   const [pickerMode, setPickerMode] = useState<PickerMode>('plan');
   const [pickerSearch, setPickerSearch] = useState('');
   const [pickerMuscleGroups, setPickerMuscleGroups] = useState<string[]>([]);
-  const [exerciseMuscleGroups, setExerciseMuscleGroups] = useState<string[]>([]);
   const [pickerSessionExerciseId, setPickerSessionExerciseId] = useState<string | null>(null);
   const [draft, setDraft] = useState<PlanDraft | null>(null);
   const [pendingSessionStart, setPendingSessionStart] = useState<PendingSessionStart | null>(null);
@@ -311,8 +307,6 @@ export default function Home() {
     setState(next);
     setSessionViewId(null);
     setActiveExerciseId(null);
-    setExerciseEditorOpenId(null);
-    setExerciseNameDraft('');
     setPendingSessionStart(null);
     setModal(null);
     setDraft(null);
@@ -508,16 +502,14 @@ export default function Home() {
     setSessionViewId(session.id);
     if (session.state !== 'in_progress') {
       setActiveExerciseId(null);
-      setExerciseEditorOpenId(null);
       setComposerKg('');
       setComposerReps('');
       return;
     }
     const target = session.exercises.find((exercise) => exercise.status === null) ?? session.exercises[0];
-    if (target) selectExerciseForRegister(target, session.sourcePlanId === null && target.status === null && target.sets.length === 0);
+    if (target) selectExerciseForRegister(target);
     else {
       setActiveExerciseId(null);
-      setExerciseEditorOpenId(null);
       setComposerKg('');
       setComposerReps('');
     }
@@ -565,8 +557,7 @@ export default function Home() {
         session.id === activeSession.id ? applySessionEdit(session, { type: 'add', exercise: next }) : session,
       ),
     }));
-    setExerciseEditorOpenId(next.id);
-    selectExerciseForRegister(next, true);
+    selectExerciseForRegister(next);
     notify('Próximo exercício adicionado.');
   }
 
@@ -698,84 +689,32 @@ export default function Home() {
     });
   }
 
-  function selectExerciseForRegister(exercise: SessionExercise, focusName = false) {
+  function selectExerciseForRegister(exercise: SessionExercise) {
     setActiveExerciseId(exercise.id);
     setExerciseTransitionId(exercise.id);
-    setExerciseEditorOpenId(focusName ? exercise.id : null);
-    const name = exercise.performed?.name ?? exercise.planned?.exercise.name ?? `Exercício ${exercise.order + 1}`;
-    setExerciseNameDraft(name);
     const lastSet = exercise.sets.at(-1);
     const target = exercise.planned;
     setComposerKg(lastSet ? (lastSet.kg === null ? '' : String(lastSet.kg).replace('.', ',')) : target?.targetKg == null ? '' : String(target.targetKg).replace('.', ','));
     setComposerReps(lastSet ? String(lastSet.reps) : target ? String(target.targetReps) : '');
     window.setTimeout(() => {
-      const element = focusName ? document.getElementById(`exercise-name-${exercise.id}`) : document.querySelector<HTMLInputElement>('#composer-kg');
-      element?.focus();
+      document.querySelector<HTMLInputElement>('#composer-kg')?.focus();
     }, 0);
-  }
-
-  function updateQuickSessionName(value: string) {
-    if (!activeSession || activeSession.sourcePlanId !== null || activeSession.state !== 'in_progress') return;
-    mutate((current) => ({
-      ...current,
-      sessions: current.sessions.map((session) =>
-        session.id === activeSession.id ? { ...session, sourcePlanName: value || null } : session,
-      ),
-    }));
-  }
-
-  function toggleExerciseMuscle(groupId: string) {
-    setExerciseMuscleGroups((current) => current.includes(groupId)
-      ? current.filter((item) => item !== groupId)
-      : [...current, groupId]);
-  }
-
-  function updateQuickExerciseName(value: string) {
-    if (!activeSession || activeSession.sourcePlanId !== null || activeSession.state !== 'in_progress') return;
-    setExerciseNameDraft(value);
-  }
-
-  function commitQuickExerciseName(exerciseId: string, value = exerciseNameDraft) {
-    if (!activeSession || activeSession.sourcePlanId !== null || activeSession.state !== 'in_progress') return;
-    const exercise = activeSession.exercises.find((item) => item.id === exerciseId);
-    if (!exercise) return;
-    const fallbackName = `Exercício ${exercise.order + 1}`;
-    const name = value.trim() || fallbackName;
-    const catalogExercise = catalog.find((item) => item.name.toLocaleLowerCase() === name.toLocaleLowerCase());
-    const performed = catalogExercise ? toSnapshot(catalogExercise) : createCustomExerciseSnapshot(exerciseId, name);
-    mutate((current) => ({
-      ...current,
-      sessions: current.sessions.map((session) =>
-        session.id === activeSession.id ? applySessionEdit(session, { type: 'set-exercise', exerciseId, performed }) : session,
-      ),
-    }));
-    setExerciseNameDraft(name);
   }
 
   function saveSet() {
     if (!activeSession || !activeExerciseId) return;
     const isQuickSession = activeSession.sourcePlanId === null;
-    const reps = composerReps.trim() ? Number(composerReps) : isQuickSession ? 0 : Number(composerReps);
+    const reps = isQuickSession ? 0 : Number(composerReps);
     const minimumReps = isQuickSession ? 0 : 1;
     if (!Number.isInteger(reps) || reps < minimumReps || reps > 999) {
       notify(isQuickSession ? 'Informe reps inteiras entre 0 e 999.' : 'Informe reps inteiras entre 1 e 999.');
       return;
     }
-    const kg = parseDecimal(composerKg);
-    if (composerKg.trim() && kg === null) {
+    const kg = isQuickSession ? null : parseDecimal(composerKg);
+    if (!isQuickSession && composerKg.trim() && kg === null) {
       notify('Informe um peso válido ou deixe em branco para peso corporal.');
       return;
     }
-    const exerciseNameInput = isQuickSession ? document.getElementById(`exercise-name-${activeExerciseId}`) : null;
-    const currentExerciseName = exerciseNameInput instanceof HTMLInputElement ? exerciseNameInput.value : exerciseNameDraft;
-    const draftExercise = isQuickSession ? activeSession.exercises.find((exercise) => exercise.id === activeExerciseId) : undefined;
-    const draftExerciseName = draftExercise ? currentExerciseName.trim() || `Exercício ${draftExercise.order + 1}` : '';
-    const draftCatalogExercise = draftExerciseName
-      ? catalog.find((exercise) => exercise.name.toLocaleLowerCase() === draftExerciseName.toLocaleLowerCase())
-      : undefined;
-    const draftPerformed = draftExercise
-      ? draftCatalogExercise ? toSnapshot(draftCatalogExercise) : createCustomExerciseSnapshot(draftExercise.id, draftExerciseName)
-      : undefined;
     const now = new Date().toISOString();
     mutate((current) => ({
       ...current,
@@ -784,15 +723,9 @@ export default function Home() {
         const exercise = session.exercises.find((item) => item.id === activeExerciseId);
         if (!exercise) return session;
         const set: SetRecord = { id: makeId(), index: exercise.sets.length + 1, kg, reps, savedAt: now };
-        const sessionWithName = draftPerformed
-          ? applySessionEdit(session, { type: 'set-exercise', exerciseId: activeExerciseId, performed: draftPerformed })
-          : session;
-        return applySessionEdit(sessionWithName, { type: 'save-set', exerciseId: activeExerciseId, set });
+        return applySessionEdit(session, { type: 'save-set', exerciseId: activeExerciseId, set });
       }),
     }));
-    if (draftExerciseName) {
-      setExerciseNameDraft(draftExerciseName);
-    }
     setSavedExerciseId(activeExerciseId);
     notifySessionChange(activeSession, 'Série salva.');
   }
@@ -845,8 +778,6 @@ export default function Home() {
     }));
     setSessionViewId(null);
     setActiveExerciseId(null);
-    setExerciseEditorOpenId(null);
-    setExerciseNameDraft('');
     setTab('today');
     notifySessionChange(activeSession, 'Sessão finalizada e salva.');
   }
@@ -863,8 +794,6 @@ export default function Home() {
     if (sessionViewId === target.id) {
       setSessionViewId(null);
       setActiveExerciseId(null);
-      setExerciseEditorOpenId(null);
-      setExerciseNameDraft('');
     }
     notify('Sessão descartada.');
   }
@@ -1335,11 +1264,11 @@ export default function Home() {
     const sessionDate = capitalizeFirst(formatDateKeyLabel(localDateKey(activeSession.startedAt), { weekday: 'long' }));
     const isQuickSession = activeSession.sourcePlanId === null;
     const inProgress = activeSession.state === 'in_progress';
+    const selectedExercise = activeExerciseId ? activeSession.exercises.find((exercise) => exercise.id === activeExerciseId) : undefined;
     const openAdd = isQuickSession ? addQuickExercise : () => openPicker('add');
     const leaveSession = () => {
       setSessionViewId(null);
       setActiveExerciseId(null);
-      setExerciseEditorOpenId(null);
     };
 
     return (
@@ -1348,20 +1277,7 @@ export default function Home() {
           <header className="essential-session-header">
             <button className="essential-quiet" type="button" onClick={leaveSession}>Voltar</button>
             <p className="essential-session-context">{sessionDate}</p>
-            <h1 tabIndex={-1}>
-              {isQuickSession && inProgress ? (
-                <input
-                  className="essential-session-name-input"
-                  data-testid="session-name"
-                  type="text"
-                  value={activeSession.sourcePlanName ?? ''}
-                  placeholder={suggestedSessionName(new Date(activeSession.startedAt))}
-                  aria-label="Nome do treino (opcional)"
-                  onChange={(event) => updateQuickSessionName(event.target.value)}
-                  onBlur={() => updateQuickSessionName(activeSession.sourcePlanName?.trim() ?? '')}
-                />
-              ) : sessionDisplayName(activeSession)}
-            </h1>
+            <h1 tabIndex={-1}>{sessionDisplayName(activeSession)}</h1>
             <WorkoutTimer startedAt={activeSession.startedAt} completedAt={activeSession.completedAt} state={activeSession.state} />
           </header>
 
@@ -1376,13 +1292,6 @@ export default function Home() {
                   const display = exercise.performed ?? exercise.planned?.exercise;
                   const plannedName = exercise.planned?.exercise.name;
                   const isActive = activeExerciseId === exercise.id;
-                  const exerciseEditorOpen = exerciseEditorOpenId === exercise.id;
-                  const suggestionName = isActive && isQuickSession ? exerciseNameDraft : display?.name ?? '';
-                  const suggestionQuery = /^Exercício \d+$/.test(suggestionName) ? '' : suggestionName;
-                  const exerciseSuggestions = rankCatalogExercises(
-                    filterCatalogExercises(catalog, suggestionQuery, exerciseMuscleGroups),
-                    favoriteScores,
-                  ).slice(0, 8);
                   const setLabel = exercise.sets.length === 1 ? '1 série' : `${exercise.sets.length} séries`;
                   return (
                     <li key={exercise.id}>
@@ -1406,79 +1315,6 @@ export default function Home() {
                         )}
                         {isActive && (
                           <>
-                            {isQuickSession && inProgress && display && (
-                              <div className="essential-exercise-editor" data-testid="exercise-editor">
-                                <label className="essential-field" htmlFor={`exercise-name-${exercise.id}`}>
-                                  <span>Exercício</span>
-                                  <input
-                                    id={`exercise-name-${exercise.id}`}
-                                    className="essential-input"
-                                    type="text"
-                                    role="combobox"
-                                    aria-label={`Exercício ${exercise.order + 1}`}
-                                    aria-autocomplete="list"
-                                    aria-expanded={exerciseEditorOpen}
-                                    aria-controls={`exercise-suggestions-${exercise.id}`}
-                                    value={exerciseNameDraft}
-                                    onFocus={() => setExerciseEditorOpenId(exercise.id)}
-                                    onChange={(event) => {
-                                      setExerciseEditorOpenId(exercise.id);
-                                      updateQuickExerciseName(event.target.value);
-                                    }}
-                                    onKeyDown={(event) => {
-                                      if (event.key === 'Escape') setExerciseEditorOpenId(null);
-                                      if (event.key === 'Enter') {
-                                        event.preventDefault();
-                                        commitQuickExerciseName(exercise.id);
-                                        setExerciseEditorOpenId(null);
-                                      }
-                                    }}
-                                  />
-                                </label>
-                                {exerciseEditorOpen && (
-                                  <>
-                                    <fieldset className="essential-chips essential-exercise-filters">
-                                      <legend className="essential-visually-hidden">Filtrar sugestões por grupo muscular</legend>
-                                      {pickerMuscleOptions.map((group) => (
-                                        <label className={exerciseMuscleGroups.includes(group.id) ? 'essential-checkbox-chip active' : 'essential-checkbox-chip'} key={group.id}>
-                                          <input
-                                            type="checkbox"
-                                            aria-label={`Filtrar sugestões por ${group.label}`}
-                                            checked={exerciseMuscleGroups.includes(group.id)}
-                                            onChange={() => toggleExerciseMuscle(group.id)}
-                                          />
-                                          <span>{group.label}</span>
-                                        </label>
-                                      ))}
-                                      {exerciseMuscleGroups.length > 0 && (
-                                        <button className="essential-quiet essential-clear-filter" type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => setExerciseMuscleGroups([])}>Limpar</button>
-                                      )}
-                                    </fieldset>
-                                    <p className="essential-exercise-note">
-                                      {exerciseMuscleGroups.length ? `Sugestões: ${exerciseMuscleGroups.map((groupId) => pickerMuscleOptions.find((group) => group.id === groupId)?.label).filter(Boolean).join(' + ')}` : 'Sugestões do catálogo'}
-                                    </p>
-                                    <div id={`exercise-suggestions-${exercise.id}`} className="essential-exercise-suggestions">
-                                      {exerciseSuggestions.map((suggestion) => (
-                                        <button
-                                          className="essential-exercise-suggestion"
-                                          type="button"
-                                          key={suggestion.id}
-                                          onMouseDown={(event) => event.preventDefault()}
-                                          onClick={() => {
-                                            commitQuickExerciseName(exercise.id, suggestion.name);
-                                            setExerciseEditorOpenId(null);
-                                          }}
-                                        >
-                                          <strong>{suggestion.name}</strong>
-                                          <span>{localizeMuscle(suggestion.primaryMuscles[0])} · {localizeEquipment(suggestion.equipment)}</span>
-                                        </button>
-                                      ))}
-                                      {!exerciseSuggestions.length && <p className="essential-exercise-note">Nenhuma sugestão. Você pode manter este nome.</p>}
-                                    </div>
-                                  </>
-                                )}
-                              </div>
-                            )}
                             {exercise.sets.length > 0 && (
                               <ul className="essential-set-list">
                                 {exercise.sets.map((set) => (
@@ -1493,46 +1329,53 @@ export default function Home() {
                               </ul>
                             )}
                             {exercise.status !== 'skipped' && (
-                              <div className="essential-composer">
-                                <p className="essential-composer-label">Série {exercise.sets.length + 1}</p>
-                                <div className="essential-composer-row">
-                                  <label className="essential-input-wrap">
-                                    <input
-                                      id="composer-kg"
-                                      className="essential-input"
-                                      inputMode="decimal"
-                                      type="text"
-                                      placeholder={isQuickSession ? 'opcional' : '0'}
-                                      value={composerKg}
-                                      onChange={(event) => setComposerKg(event.target.value)}
-                                      onFocus={(event) => event.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
-                                      aria-label="Peso em quilogramas"
-                                    />
-                                    <span>kg</span>
-                                  </label>
-                                  <label className="essential-input-wrap">
-                                    <input
-                                      id="composer-reps"
-                                      className="essential-input"
-                                      inputMode="numeric"
-                                      type="number"
-                                      min={isQuickSession ? 0 : 1}
-                                      max={999}
-                                      placeholder={isQuickSession ? 'opcional' : '10'}
-                                      value={composerReps}
-                                      onChange={(event) => setComposerReps(event.target.value)}
-                                      onKeyDown={(event) => { if (event.key === 'Enter') saveSet(); }}
-                                      onFocus={(event) => event.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
-                                      aria-label="Repetições"
-                                    />
-                                    <span>reps</span>
-                                  </label>
+                              isQuickSession ? (
+                                <div className="essential-quick-register">
+                                  <button className="essential-primary" type="button" data-testid="quick-mark-set" onClick={saveSet}>Marcar série</button>
+                                  {savedExerciseId === exercise.id && <output className="essential-save-feedback" aria-live="polite">Série salva</output>}
                                 </div>
-                                <button className="essential-primary" type="button" data-testid="quick-set-done" onClick={saveSet}>Salvar série</button>
-                                {savedExerciseId === exercise.id && <output className="essential-save-feedback" aria-live="polite">Série salva</output>}
-                              </div>
+                              ) : (
+                                <div className="essential-composer">
+                                  <p className="essential-composer-label">Série {exercise.sets.length + 1}</p>
+                                  <div className="essential-composer-row">
+                                    <label className="essential-input-wrap">
+                                      <input
+                                        id="composer-kg"
+                                        className="essential-input"
+                                        inputMode="decimal"
+                                        type="text"
+                                        placeholder="0"
+                                        value={composerKg}
+                                        onChange={(event) => setComposerKg(event.target.value)}
+                                        onFocus={(event) => event.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+                                        aria-label="Peso em quilogramas"
+                                      />
+                                      <span>kg</span>
+                                    </label>
+                                    <label className="essential-input-wrap">
+                                      <input
+                                        id="composer-reps"
+                                        className="essential-input"
+                                        inputMode="numeric"
+                                        type="number"
+                                        min={1}
+                                        max={999}
+                                        placeholder="10"
+                                        value={composerReps}
+                                        onChange={(event) => setComposerReps(event.target.value)}
+                                        onKeyDown={(event) => { if (event.key === 'Enter') saveSet(); }}
+                                        onFocus={(event) => event.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+                                        aria-label="Repetições"
+                                      />
+                                      <span>reps</span>
+                                    </label>
+                                  </div>
+                                  <button className="essential-primary" type="button" data-testid="quick-set-done" onClick={saveSet}>Salvar série</button>
+                                  {savedExerciseId === exercise.id && <output className="essential-save-feedback" aria-live="polite">Série salva</output>}
+                                </div>
+                              )
                             )}
-                            <details className="essential-actions-disclosure">
+                            {!isQuickSession && <details className="essential-actions-disclosure">
                               <summary>Ações do exercício</summary>
                               <div className="essential-exercise-actions">
                                 {exercise.status === null && exercise.planned && (
@@ -1545,7 +1388,7 @@ export default function Home() {
                                   <button className="essential-quiet" type="button" onClick={() => undoExercise(exercise.id)}>Desfazer</button>
                                 )}
                               </div>
-                            </details>
+                            </details>}
                           </>
                         )}
                       </article>
@@ -1553,7 +1396,7 @@ export default function Home() {
                   );
                 })}
               </ul>
-              {inProgress && <button className="essential-secondary essential-add-exercise" data-testid={isQuickSession ? 'next-exercise' : 'add-exercise'} type="button" onClick={openAdd}>{isQuickSession ? 'Próximo exercício' : 'Adicionar exercício'}</button>}
+              {inProgress && (!isQuickSession || (selectedExercise?.sets.length ?? 0) > 0) && <button className="essential-secondary essential-add-exercise" data-testid={isQuickSession ? 'next-exercise' : 'add-exercise'} type="button" onClick={openAdd}>{isQuickSession ? 'Próximo exercício' : 'Adicionar exercício'}</button>}
             </>
           )}
 
