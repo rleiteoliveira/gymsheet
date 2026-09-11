@@ -76,6 +76,7 @@ async function capture(page: Page, info: TestInfo, name: string) {
 }
 
 const freeSessionName = 'Treino · domingo 06/09';
+const customFreeSessionName = 'Peito + Pernas';
 
 test('começa livre, persiste série, recarrega, retoma o mesmo ID e conclui no calendário', async ({ page }) => {
   await openApp(page);
@@ -83,28 +84,46 @@ test('começa livre, persiste série, recarrega, retoma o mesmo ID e conclui no 
   await expect(launcher).toHaveText('Começar');
   await launcher.click();
   await expect(page.getByRole('dialog', { name: 'Começar treino' })).toHaveCount(0);
-  const picker = page.getByRole('dialog', { name: 'Adicionar na sessão' });
-  await expect(page.getByText(/nos últimos 30 dias/)).toHaveCount(0);
-  await expect(page.locator('.essential-sheet[data-starting="true"]')).toBeVisible();
-  await picker.locator('button.picker-item').first().click();
-  await expect(page.locator('.session-clock, .progress-track, .status-chip')).toHaveCount(0);
-  await page.getByLabel('Peso em quilogramas').fill('25');
-  await page.getByLabel('Repetições', { exact: true }).fill('12');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  const sessionName = page.getByTestId('session-name');
+  await expect(sessionName).toHaveValue('');
+  await expect(sessionName).toHaveAttribute('placeholder', freeSessionName);
+  await sessionName.fill(customFreeSessionName);
+  await expect.poll(async () => (await readState(page)).sessions[0]?.sourcePlanName).toBe(customFreeSessionName);
+
+  const exerciseName = page.getByRole('combobox', { name: 'Exercício 1', exact: true });
+  await expect(exerciseName).toHaveValue('Exercício 1');
+  await exerciseName.fill('Bench Press');
+  await expect(exerciseName).toHaveValue('Bench Press');
+  await page.getByLabel('Filtrar sugestões por Peito').check();
+  await page.getByLabel('Filtrar sugestões por Pernas').check();
+  await expect(page.getByText('Sugestões: Peito + Pernas', { exact: true })).toBeVisible();
+  await expect(page.locator('button.essential-exercise-suggestion').filter({ hasText: 'Barbell Bench Press - Medium Grip' })).toBeVisible();
+  await page.locator('button.essential-exercise-suggestion').filter({ hasText: 'Barbell Bench Press - Medium Grip' }).click();
+  await expect(exerciseName).toHaveValue('Barbell Bench Press - Medium Grip');
+  await expect(page.getByLabel('Peso em quilogramas')).toHaveValue('');
+  await expect(page.getByLabel('Repetições', { exact: true })).toHaveValue('');
   await page.getByTestId('quick-set-done').click();
   await expect(page.getByText('Série salva', { exact: true })).toBeVisible();
+  await page.getByTestId('next-exercise').click();
+  await expect(page.getByRole('combobox', { name: 'Exercício 2', exact: true })).toHaveValue('Exercício 2');
+  await expect(page.getByLabel('Peso em quilogramas')).toHaveValue('');
+  await expect(page.getByLabel('Repetições', { exact: true })).toHaveValue('');
   await page.getByTestId('quick-set-done').click();
-  await expect.poll(async () => (await readState(page)).sessions[0]?.exercises[0]?.sets.length).toBe(2);
+  await expect.poll(async () => (await readState(page)).sessions[0]?.exercises.map((exercise) => exercise.sets.length)).toEqual([1, 1]);
   const recorded = (await readState(page)).sessions[0];
-  expect(recorded.sourcePlanName).toBe(freeSessionName);
-  expect(recorded.exercises[0].sets[0]).toMatchObject({ kg: 25, reps: 12 });
-  expect(recorded.exercises[0].sets[1]).toMatchObject({ kg: 25, reps: 12 });
+  expect(recorded.sourcePlanName).toBe(customFreeSessionName);
+  expect(recorded.exercises[0].performed?.name).toBe('Barbell Bench Press - Medium Grip');
+  expect(recorded.exercises[0].sets[0]).toMatchObject({ kg: null, reps: 0 });
+  expect(recorded.exercises[1]).toMatchObject({ order: 1, performed: { name: 'Exercício 2' } });
+  expect(recorded.exercises[1].sets[0]).toMatchObject({ kg: null, reps: 0 });
   await expect(launcher).toHaveCount(0);
   await page.getByRole('button', { name: 'Voltar', exact: true }).click();
   await page.reload();
   await expect(launcher).toHaveText('Retomar');
   await expect(page.getByRole('button', { name: /Escolher treino:/ })).toHaveCount(0);
   await launcher.click();
-  await expect(page.getByRole('heading', { name: freeSessionName, exact: true })).toBeVisible();
+  await expect(page.getByTestId('session-name')).toHaveValue(customFreeSessionName);
   await expect(page.getByText('Série 1', { exact: true })).toBeVisible();
   expect((await readState(page)).sessions).toEqual([recorded]);
   await page.getByTestId('finish-workout').click();
@@ -117,7 +136,7 @@ test('começa livre, persiste série, recarrega, retoma o mesmo ID e conclui no 
   await expect(page.getByRole('heading', { name: 'Calendário', exact: true })).toBeVisible();
   await expect(page.getByText('Top skipped')).toHaveCount(0);
   await expect(page.getByText('O que aconteceu')).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: /Treino · domingo 06\/09/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: customFreeSessionName, exact: true })).toBeVisible();
   await expect(page.getByText(/Concluída/)).toBeVisible();
   await expect(launcher).toHaveCount(0);
   expect((await readState(page)).sessions).toEqual([completed]);
@@ -129,11 +148,12 @@ test('começa livre, persiste série, recarrega, retoma o mesmo ID e conclui no 
   expect((await readState(page)).sessions).toEqual([completed]);
   await goTo(page, 'Histórico');
   await expect(page.getByRole('heading', { name: 'Histórico', exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: freeSessionName, exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: customFreeSessionName, exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Começar sessão vazia' })).toHaveCount(0);
   await goTo(page, 'Treino');
   await launcher.click();
-  await expect(page.getByRole('dialog', { name: 'Adicionar na sessão' })).toBeVisible();
+  await expect(page.getByTestId('session-name')).toHaveAttribute('placeholder', freeSessionName);
+  await expect(page.getByRole('combobox', { name: 'Exercício 1', exact: true })).toBeVisible();
   const afterRestart = await readState(page);
   expect(afterRestart.sessions[0]).toEqual(completed);
   expect(afterRestart.sessions).toHaveLength(2);
@@ -142,13 +162,13 @@ test('começa livre, persiste série, recarrega, retoma o mesmo ID e conclui no 
 test('mostra o horário de cada série e mantém o intervalo do treino após recarga e conclusão', async ({ page }) => {
   await openApp(page);
   await page.getByTestId('start-workout').click();
-  const picker = page.getByRole('dialog', { name: 'Adicionar na sessão' });
-  await picker.locator('button.picker-item').first().click();
   const timer = page.getByTestId('workout-timer');
   await expect(timer).toContainText('Tempo de treino');
+  await expect(page.getByTestId('session-name')).toHaveValue('');
+  await expect(page.getByTestId('session-name')).toHaveAttribute('placeholder', freeSessionName);
+  await expect(page.getByLabel('Peso em quilogramas')).toHaveValue('');
+  await expect(page.getByLabel('Repetições', { exact: true })).toHaveValue('');
 
-  await page.getByLabel('Peso em quilogramas').fill('25');
-  await page.getByLabel('Repetições', { exact: true }).fill('12');
   await page.getByTestId('quick-set-done').click();
   await expect.poll(async () => (await readState(page)).sessions[0]?.exercises[0]?.sets.length).toBe(1);
 
@@ -161,6 +181,8 @@ test('mostra o horário de cada série e mantém o intervalo do treino após rec
     now.toISOString(),
     '2026-09-06T15:01:05.000Z',
   ]);
+  expect(recorded.sessions[0].sourcePlanName).toBeNull();
+  expect(recorded.sessions[0].exercises[0].sets.every((set) => set.kg === null && set.reps === 0)).toBe(true);
   await expect(page.locator('.essential-set-time')).toHaveText(['12:00', '12:01']);
 
   await page.reload();
