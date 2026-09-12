@@ -3,7 +3,7 @@
 - `context_level`: `EVIDENCE`
 - `observed_at`: 2026-09-12, America/Fortaleza
 - `scope`: slice 40 — cara de treino na home e na sessão
-- `release_status`: validado localmente; CI/deploy pendentes do PR
+- `release_status`: publicado e verificado
 
 ## Última execução local registrada
 
@@ -14,8 +14,15 @@
 | `npx tsc --noEmit` | aprovado |
 | `npm run build` | aprovado |
 | `npm run verify:build` | aprovado; artefato contém Worker, assets, build-meta e Service Worker |
-| `npm run test:e2e` | 17 testes aprovados em 33,1 s; anel aberto 0→1 no livre, anel 0/1 e 1/1 na ficha, acento `#ff6a3d` no CTA, reduced-motion sem atraso |
+| `npm run test:e2e` | 17 testes aprovados em 30,7 s após o CSS compacto; anel aberto 0→1 no livre, anel 0/1 e 1/1 na ficha, acento `#ff6a3d` no CTA, reduced-motion sem atraso |
 | Playwright contra `http://127.0.0.1:8787` | CTA `rgb(255, 106, 61)` cápsula 999px com glow; palco ativo com borda/glow; anel 0→1 ao marcar; linha da série com `data-arriving` |
+
+## Evidência remota
+
+- PR [#55](https://github.com/rleiteoliveira/gymsheet/pull/55) squash-mergeado; SHA `3e0d30a7e2cc2e873f83c489d677e43c607fe889`.
+- Run [34684392058](https://github.com/rleiteoliveira/gymsheet/actions/runs/34684392058): job `ci` success no PR; `deploy` skipped (só em `main`).
+- Run [34684494232](https://github.com/rleiteoliveira/gymsheet/actions/runs/34684494232): `ci` e `deploy` success no push para `main`.
+- Consulta independente a `https://gymsheet.rleiteoliveira.workers.dev/build-meta.json` retornou HTTP 200 e o buildId `3e0d30a7e2cc2e873f83c489d677e43c607fe889` em 2026-09-12.
 
 ## Cobertura relevante
 
@@ -26,6 +33,5 @@
 
 ## Limites
 
-- Não foi possível abrir Chrome DevTools/wmux neste ambiente; a verificação visual usou Playwright no servidor local.
+- Chrome DevTools/wmux não estavam disponíveis neste ambiente; a verificação visual usou Playwright no servidor local.
 - `output/` e `work/` são artefatos auxiliares.
-- Produção ainda não foi republicada nesta fatia.

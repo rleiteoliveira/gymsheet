@@ -1,7 +1,7 @@
 # Slice 40 — Cara de treino
 
 - Issue / origem: pedido do dono em 2026-09-12; PoC visual da home e da sessão
-- Status: doing
+- Status: done
 - Cabe no próximo treino? sim — Começar tem presença; cada série move o anel.
 
 ## Direção
@@ -45,3 +45,4 @@ Identidade de app de treino nas duas telas do fluxo principal, sem recap, descan
 
 - Recap ao finalizar e timer de descanso ficam para fatias seguintes.
 - Slice promovido a `ready` pelo dono em 2026-09-12 (“aplicar o plano e mergear”).
+- Concluído após PR #55, CI/deploy verdes e buildId de produção `3e0d30a7e2cc2e873f83c489d677e43c607fe889`.
