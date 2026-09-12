@@ -10,17 +10,20 @@ Referências: [mock da inicial](./references/25-essencial-inicial.png), [estrutu
 |---|---|
 | Fundo | `#11120f` |
 | Superfície (menu, painel, sheet) | `#191a16` |
-| Texto e botão principal | `#f2f0e8` |
+| Texto | `#f2f0e8` |
 | Texto secundário | `#a4a49a` |
 | Divisor | `#30312c` |
-| Texto no botão claro | `#11120f` |
+| Acento de treino | `#ff6a3d` — CTA da home, palco do exercício ativo, anel e confirmação de série |
+| Texto no botão de treino | `#11120f` |
 | Erro | `#ff7b88`, só com texto de problema real |
 
 Marca e nome do treino: serifada local (Georgia / Times). Corpo, campos e botões: sans de sistema. Números tabulares. Sem fonte externa.
 
-Escala: marca 18 px; título 30–32 px; corpo e botões 16 px; data e metadados 14 px. Espaçamento 4/8/12/16/24/32/48. Margem mobile 24 px. Alvo 48×48; botão principal ≥ 52 px. Cantos ~10 px. Coluna ≤ 560 px.
+Escala: marca 18 px; título 30–32 px; corpo e botões 16 px; data e metadados 14 px. Espaçamento 4/8/12/16/24/32/48. Margem mobile 24 px. Alvo 48×48; botão principal ≥ 52 px. CTA de treino em cápsula. Coluna ≤ 560 px.
 
-Sem verde decorativo, degradê, brilho, sombra pesada, card dentro de card ou ícone para cada frase.
+Glow e degradê radial só no CTA da home e no exercício ativo. Sem verde decorativo, sombra pesada, card dentro de card, anel semanal ou ícone para cada frase.
+
+O anel do exercício ativo usa séries já persistidas: ficha = feitas / `targetSets`; treino livre cresce por marca e não inventa meta.
 
 ## Botões
 

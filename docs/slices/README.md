@@ -28,6 +28,7 @@ Antes de usar este índice, leia [o estado atual do checkout](../context/00-curr
 
 | Slice | Status | Issue / origem |
 |---|---|---|
+| [40-cara-de-treino](./40-cara-de-treino.md) | doing | pedido do dono em 2026-09-12 |
 | [39-registro-minimo](./39-registro-minimo.md) | done | pedido do dono em 2026-09-11 |
 | [38-registro-rapido](./38-registro-rapido.md) | done | pedido do dono em 2026-09-11 |
 | [36-tempo-do-treino](./36-tempo-do-treino.md) | done | pedido do dono em 2026-09-10 |

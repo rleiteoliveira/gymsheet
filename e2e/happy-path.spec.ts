@@ -92,16 +92,22 @@ test('começa livre, persiste série, recarrega, retoma o mesmo ID e conclui no 
   await expect(page.getByText('Exercício 1', { exact: true })).toBeVisible();
   await expect(page.getByTestId('quick-mark-set')).toBeVisible();
   await expect(page.getByTestId('next-exercise')).toHaveCount(0);
+  await expect(page.getByTestId('session-ring')).toHaveAttribute('data-kind', 'open');
+  await expect(page.getByTestId('session-ring')).toHaveText('0');
   await page.getByTestId('quick-mark-set').click();
   await expect(page.getByText('Série salva', { exact: true })).toBeVisible();
   await expect.poll(async () => (await readState(page)).sessions[0]?.exercises[0]?.sets.length).toBe(1);
+  await expect(page.getByTestId('session-ring')).toHaveText('1');
+  await expect(page.getByTestId('session-ring')).not.toHaveAttribute('data-complete', 'true');
   await expect(page.getByTestId('next-exercise')).toBeVisible();
   await page.getByTestId('next-exercise').click();
   await expect(page.getByText('Exercício 2', { exact: true })).toBeVisible();
   await expect(page.getByTestId('quick-mark-set')).toBeVisible();
   await expect(page.getByTestId('next-exercise')).toHaveCount(0);
+  await expect(page.getByTestId('session-ring')).toHaveText('0');
   await page.getByTestId('quick-mark-set').click();
   await expect.poll(async () => (await readState(page)).sessions[0]?.exercises.map((exercise) => exercise.sets.length)).toEqual([1, 1]);
+  await expect(page.getByTestId('session-ring')).toHaveText('1');
   const recorded = (await readState(page)).sessions[0];
   expect(recorded.sourcePlanName).toBeNull();
   expect(recorded.exercises[0].performed?.name).toBe('Exercício 1');
@@ -237,6 +243,8 @@ test('seletor escolhe treino sem criar sessão e mantém gestão separada', asyn
   await page.getByTestId('start-workout').click();
   await expect(page.getByRole('heading', { name: 'Peito', exact: true })).toBeVisible();
   await expect(page.locator('.essential-session[data-starting="true"]')).toBeVisible();
+  await expect(page.getByTestId('session-ring')).toHaveAttribute('data-kind', 'planned');
+  await expect(page.getByTestId('session-ring')).toHaveText('0/1');
   await expect.poll(async () => (await readState(page)).sessions.length).toBe(1);
   expect((await readState(page)).sessions[0]).toMatchObject({ sourcePlanId: plan.id, sourcePlanName: plan.name, state: 'in_progress' });
 });
@@ -247,6 +255,7 @@ test('partida com movimento reduzido mostra o destino sem atraso', async ({ page
   await page.getByTestId('start-workout').click();
   await expect(page.getByRole('heading', { name: 'Peito', exact: true })).toBeVisible();
   await expect(page.locator('.essential-session[data-starting="true"]')).toHaveCount(0);
+  await expect(page.getByTestId('session-ring')).toHaveText('0/1');
   expect((await readState(page)).sessions[0]).toMatchObject({ sourcePlanId: plan.id, sourcePlanName: plan.name, state: 'in_progress' });
 });
 
@@ -345,6 +354,8 @@ test('ficha: pular, trocar, adicionar, recarregar e finalizar o mesmo ID', async
   await page.getByLabel('Peso em quilogramas').fill('30');
   await page.getByLabel('Repetições', { exact: true }).fill('8');
   await page.getByTestId('quick-set-done').click();
+  await expect(page.getByTestId('session-ring')).toHaveText('1/1');
+  await expect(page.getByTestId('session-ring')).toHaveAttribute('data-complete', 'true');
   await page.getByRole('button', { name: 'Adicionar exercício', exact: true }).click();
   const addPicker = page.getByRole('dialog', { name: 'Adicionar na sessão' });
   await addPicker.locator('button.picker-item').nth(3).click();
@@ -437,8 +448,11 @@ test('nome longo, texto a 200%, contraste, alvos e menu em 320px e desktop', asy
     const background = getComputedStyle(document.querySelector('.essential-home')!).backgroundColor;
     const date = getComputedStyle(document.querySelector('.essential-date')!);
     const button = getComputedStyle(document.querySelector('.essential-start')!);
-    return { text: ratio(date.color, background), buttonText: ratio(button.color, button.backgroundColor), control: ratio(button.backgroundColor, background) };
+    const heat = getComputedStyle(document.documentElement).getPropertyValue('--essential-heat').trim();
+    return { text: ratio(date.color, background), buttonText: ratio(button.color, button.backgroundColor), control: ratio(button.backgroundColor, background), heat, buttonBackground: button.backgroundColor };
   });
+  expect(contrast.heat).toBe('#ff6a3d');
+  expect(contrast.buttonBackground).toBe('rgb(255, 106, 61)');
   expect(contrast.text).toBeGreaterThanOrEqual(4.5);
   expect(contrast.buttonText).toBeGreaterThanOrEqual(4.5);
   expect(contrast.control).toBeGreaterThanOrEqual(3);
