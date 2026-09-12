@@ -43,7 +43,7 @@ Textos descrevem ações. Sem slogan no estado normal.
 ## Estados
 
 - Inicial: ficha fixada, treino livre, retomar hoje, concluída volta à composição normal, sessão de outro dia exige decisão explícita.
-- Sessão: kg/reps no exercício ativo; pular/trocar/adicionar no card ativo; finalizar; calendário corrige o passado.
+- Sessão: marcar série no toque; kg/reps opcionais na linha depois; pular/trocar/adicionar no exercício ativo; finalizar; calendário corrige o passado. Sem rótulo de peso corporal na série vazia.
 - Dados: JSON, CSV, restaurar e exemplo; catálogo só aqui.
 
 ## Fora deste padrão

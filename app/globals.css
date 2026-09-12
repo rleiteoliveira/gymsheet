@@ -298,7 +298,7 @@ a:focus-visible {
 .essential-exercise-meta { flex: 0 0 auto; margin-left: auto; color: var(--essential-muted); font-size: .75rem; white-space: nowrap; }
 .essential-exercise-note { margin: 8px 0 0; color: var(--essential-muted); font-size: .875rem; }
 .essential-set-list { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
-.essential-set-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; color: var(--essential-muted); font-size: .875rem; }
+.essential-set-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; width: 100%; min-height: 48px; border: 0; padding: 8px 0; color: var(--essential-muted); background: transparent; font: inherit; font-size: .875rem; text-align: left; cursor: pointer; }
 .essential-set-label { display: grid; min-width: 0; gap: 2px; }
 .essential-set-time { color: var(--essential-muted); font-size: .75rem; line-height: 1.35; overflow-wrap: anywhere; }
 .essential-set-row strong { color: var(--essential-text); font-weight: 600; }
