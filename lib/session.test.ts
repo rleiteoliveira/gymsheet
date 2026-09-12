@@ -163,6 +163,30 @@ describe('snapshot e edição da sessão', () => {
     expect(plan).toEqual(originalPlan);
   });
 
+  it('atualiza kg e reps da série sem mudar id nem horário', () => {
+    let session = createQuickSessionWithStarter(null, new Date('2026-08-30T09:00:00-03:00'), sequentialIds('quick'));
+    const exercise = session.exercises[0];
+    session = applySessionEdit(session, {
+      type: 'save-set',
+      exerciseId: exercise.id,
+      set: { id: 'set-empty', index: 1, kg: null, reps: 0, savedAt: '2026-08-30T12:00:00.000Z' },
+    });
+    session = applySessionEdit(session, {
+      type: 'update-set',
+      exerciseId: exercise.id,
+      setId: 'set-empty',
+      kg: 80,
+      reps: 8,
+    });
+    expect(session.exercises[0].sets[0]).toMatchObject({
+      id: 'set-empty',
+      index: 1,
+      kg: 80,
+      reps: 8,
+      savedAt: '2026-08-30T12:00:00.000Z',
+    });
+  });
+
   it('mantém done, skipped, swapped e added isolados da ficha original', () => {
     const plan = makePlan();
     const originalPlan = structuredClone(plan);

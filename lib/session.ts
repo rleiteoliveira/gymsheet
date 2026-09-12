@@ -16,6 +16,7 @@ export type SessionStartDecision =
 
 export type SessionEdit =
   | { type: 'save-set'; exerciseId: string; set: SetRecord }
+  | { type: 'update-set'; exerciseId: string; setId: string; kg: number | null; reps: number }
   | { type: 'skip'; exerciseId: string }
   | { type: 'undo'; exerciseId: string }
   | { type: 'set-exercise'; exerciseId: string; performed: ExerciseSnapshot }
@@ -92,13 +93,13 @@ export function createSessionFromPlan(plan: Plan | undefined, startedAt: Date, m
     completedAt: null,
     exercises: plan
       ? plan.exercises.map((exercise, index) => ({
-          id: makeId(),
-          order: index,
-          planned: clonePlanExercise(exercise),
-          performed: null,
-          status: null,
-          sets: [],
-        }))
+        id: makeId(),
+        order: index,
+        planned: clonePlanExercise(exercise),
+        performed: null,
+        status: null,
+        sets: [],
+      }))
       : [],
   };
 }
@@ -175,6 +176,14 @@ export function applySessionEdit(session: Session, edit: SessionEdit): Session {
       }
       if (edit.type === 'set-exercise') {
         return { ...exercise, performed: cloneExerciseSnapshot(edit.performed) };
+      }
+      if (edit.type === 'update-set') {
+        return {
+          ...exercise,
+          sets: exercise.sets.map((set) =>
+            set.id === edit.setId ? { ...set, kg: edit.kg, reps: edit.reps } : set,
+          ),
+        };
       }
       return {
         ...exercise,

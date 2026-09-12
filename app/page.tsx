@@ -14,6 +14,7 @@ import {
 import { Dialog } from '@base-ui/react/dialog';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { SetRecordedAt, WorkoutTimer } from '@/app/components/workout-time';
+import { formatSetLoad } from '@/lib/set-load';
 import { parseSkin, setCountCopy, SKIN_OPTIONS, SKIN_STORAGE_KEY, type Skin } from '@/lib/skin';
 import { createBackup, loadAppState, parseBackup, restoreAppState, saveAppState } from '@/lib/storage';
 import { FALLBACK_EXERCISES, imageUrl, loadCatalog, toSnapshot } from '@/lib/catalog';
@@ -123,11 +124,6 @@ function formatDateKeyLabel(dateKey: string, options: Intl.DateTimeFormatOptions
 function sessionDisplayName(session: Session) {
   if (session.sourcePlanName) return session.sourcePlanName;
   return session.sourcePlanId === null ? suggestedSessionName(new Date(session.startedAt)) : 'Sessão vazia';
-}
-
-function formatKg(value: number | null | undefined) {
-  if (value === null || value === undefined) return 'Peso corporal';
-  return `${value.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} kg`;
 }
 
 function parseDecimal(value: string) {
@@ -289,6 +285,7 @@ export default function Home() {
   const [activeExerciseId, setActiveExerciseId] = useState<string | null>(null);
   const [composerKg, setComposerKg] = useState('');
   const [composerReps, setComposerReps] = useState('');
+  const [editingSetId, setEditingSetId] = useState<string | null>(null);
   const [modal, setModal] = useState<Modal>(null);
   const [pickerMode, setPickerMode] = useState<PickerMode>('plan');
   const [pickerSearch, setPickerSearch] = useState('');
@@ -705,29 +702,21 @@ export default function Home() {
   function selectExerciseForRegister(exercise: SessionExercise) {
     setActiveExerciseId(exercise.id);
     setExerciseTransitionId(exercise.id);
-    const lastSet = exercise.sets.at(-1);
-    const target = exercise.planned;
-    setComposerKg(lastSet ? (lastSet.kg === null ? '' : String(lastSet.kg).replace('.', ',')) : target?.targetKg == null ? '' : String(target.targetKg).replace('.', ','));
-    setComposerReps(lastSet ? String(lastSet.reps) : target ? String(target.targetReps) : '');
-    window.setTimeout(() => {
-      document.querySelector<HTMLInputElement>('#composer-kg')?.focus();
-    }, 0);
+    setEditingSetId(null);
+  }
+
+  function startEditSet(set: SetRecord) {
+    if (editingSetId === set.id) {
+      setEditingSetId(null);
+      return;
+    }
+    setEditingSetId(set.id);
+    setComposerKg(set.kg === null ? '' : String(set.kg).replace('.', ','));
+    setComposerReps(set.reps > 0 ? String(set.reps) : '');
   }
 
   function saveSet() {
     if (!activeSession || !activeExerciseId) return;
-    const isQuickSession = activeSession.sourcePlanId === null;
-    const reps = isQuickSession ? 0 : Number(composerReps);
-    const minimumReps = isQuickSession ? 0 : 1;
-    if (!Number.isInteger(reps) || reps < minimumReps || reps > 999) {
-      notify(isQuickSession ? 'Informe reps inteiras entre 0 e 999.' : 'Informe reps inteiras entre 1 e 999.');
-      return;
-    }
-    const kg = isQuickSession ? null : parseDecimal(composerKg);
-    if (!isQuickSession && composerKg.trim() && kg === null) {
-      notify('Informe um peso válido ou deixe em branco para peso corporal.');
-      return;
-    }
     const now = new Date().toISOString();
     mutate((current) => ({
       ...current,
@@ -735,12 +724,43 @@ export default function Home() {
         if (session.id !== activeSession.id) return session;
         const exercise = session.exercises.find((item) => item.id === activeExerciseId);
         if (!exercise) return session;
-        const set: SetRecord = { id: makeId(), index: exercise.sets.length + 1, kg, reps, savedAt: now };
+        const set: SetRecord = { id: makeId(), index: exercise.sets.length + 1, kg: null, reps: 0, savedAt: now };
         return applySessionEdit(session, { type: 'save-set', exerciseId: activeExerciseId, set });
       }),
     }));
+    setEditingSetId(null);
     setSavedExerciseId(activeExerciseId);
     notifySessionChange(activeSession, 'Série salva.');
+  }
+
+  function updateSetValues() {
+    if (!activeSession || !activeExerciseId || !editingSetId) return;
+    const reps = composerReps.trim() === '' ? 0 : Number(composerReps);
+    if (!Number.isInteger(reps) || reps < 0 || reps > 999) {
+      notify('Informe reps inteiras entre 0 e 999, ou deixe em branco.');
+      return;
+    }
+    const kg = parseDecimal(composerKg);
+    if (composerKg.trim() && kg === null) {
+      notify('Informe um peso válido ou deixe em branco.');
+      return;
+    }
+    mutate((current) => ({
+      ...current,
+      sessions: current.sessions.map((session) =>
+        session.id !== activeSession.id
+          ? session
+          : applySessionEdit(session, {
+            type: 'update-set',
+            exerciseId: activeExerciseId,
+            setId: editingSetId,
+            kg,
+            reps,
+          }),
+      ),
+    }));
+    setEditingSetId(null);
+    notifySessionChange(activeSession, 'Série atualizada.');
   }
 
   function markSkipped(exerciseId: string) {
@@ -1344,73 +1364,83 @@ export default function Home() {
                         {isActive && exercise.status === 'swapped' && plannedName && plannedName !== display?.name && (
                           <p className="essential-exercise-note">Planejado: {plannedName}</p>
                         )}
+                        {isActive && exercise.planned && (
+                          <p className="essential-exercise-note">
+                            Alvo {exercise.planned.targetSets}×{exercise.planned.targetReps}
+                            {exercise.planned.targetKg != null ? ` · ${exercise.planned.targetKg.toLocaleString('pt-BR')} kg` : ''}
+                          </p>
+                        )}
                         {isActive && (
                           <>
                             <p className="essential-set-count" data-testid="set-count">{copy.count}</p>
                             <p className="essential-set-count-label" data-testid="set-count-label">{copy.label}</p>
                             {exercise.sets.length > 0 && (
                               <ul className="essential-set-list">
-                                {exercise.sets.map((set, index) => (
-                                  <li
-                                    className="essential-set-row"
-                                    key={set.id}
-                                    data-arriving={savedExerciseId === exercise.id && index === exercise.sets.length - 1 ? 'true' : undefined}
-                                  >
-                                    <span className="essential-set-label">
-                                      <span>Série {set.index}</span>
-                                      <SetRecordedAt savedAt={set.savedAt} sessionStartedAt={activeSession.startedAt} />
-                                    </span>
-                                    <strong>{formatKg(set.kg)} · {set.reps} reps</strong>
-                                  </li>
-                                ))}
+                                {exercise.sets.map((set, index) => {
+                                  const load = formatSetLoad(set.kg, set.reps);
+                                  return (
+                                    <li key={set.id}>
+                                      <button
+                                        className="essential-set-row"
+                                        type="button"
+                                        data-arriving={savedExerciseId === exercise.id && index === exercise.sets.length - 1 ? 'true' : undefined}
+                                        data-testid={'set-row-' + set.index}
+                                        aria-expanded={editingSetId === set.id}
+                                        aria-label={load ? `Série ${set.index}, ${load}` : `Série ${set.index}`}
+                                        onClick={() => startEditSet(set)}
+                                      >
+                                        <span className="essential-set-label">
+                                          <span>Série {set.index}</span>
+                                          <SetRecordedAt savedAt={set.savedAt} sessionStartedAt={activeSession.startedAt} />
+                                        </span>
+                                        {load ? <strong>{load}</strong> : null}
+                                      </button>
+                                      {editingSetId === set.id && (
+                                        <div className="essential-composer">
+                                          <div className="essential-composer-row">
+                                            <label className="essential-input-wrap">
+                                              <input
+                                                id="composer-kg"
+                                                className="essential-input"
+                                                inputMode="decimal"
+                                                type="text"
+                                                placeholder="kg"
+                                                value={composerKg}
+                                                onChange={(event) => setComposerKg(event.target.value)}
+                                                aria-label="Peso em quilogramas"
+                                              />
+                                              <span>kg</span>
+                                            </label>
+                                            <label className="essential-input-wrap">
+                                              <input
+                                                id="composer-reps"
+                                                className="essential-input"
+                                                inputMode="numeric"
+                                                type="number"
+                                                min={0}
+                                                max={999}
+                                                placeholder="reps"
+                                                value={composerReps}
+                                                onChange={(event) => setComposerReps(event.target.value)}
+                                                onKeyDown={(event) => { if (event.key === 'Enter') updateSetValues(); }}
+                                                aria-label="Repetições"
+                                              />
+                                              <span>reps</span>
+                                            </label>
+                                          </div>
+                                          <button className="essential-primary" type="button" data-testid="save-set-values" onClick={updateSetValues}>Guardar</button>
+                                        </div>
+                                      )}
+                                    </li>
+                                  );
+                                })}
                               </ul>
                             )}
                             {exercise.status !== 'skipped' && (
-                              isQuickSession ? (
-                                <div className="essential-quick-register">
-                                  <button className="essential-primary" type="button" data-testid="quick-mark-set" data-saving={savedExerciseId === exercise.id ? 'true' : undefined} onClick={saveSet}>Marcar série</button>
-                                  {savedExerciseId === exercise.id && <output className="essential-save-feedback" aria-live="polite">Série salva</output>}
-                                </div>
-                              ) : (
-                                <div className="essential-composer">
-                                  <p className="essential-composer-label">Série {exercise.sets.length + 1}</p>
-                                  <div className="essential-composer-row">
-                                    <label className="essential-input-wrap">
-                                      <input
-                                        id="composer-kg"
-                                        className="essential-input"
-                                        inputMode="decimal"
-                                        type="text"
-                                        placeholder="0"
-                                        value={composerKg}
-                                        onChange={(event) => setComposerKg(event.target.value)}
-                                        onFocus={(event) => event.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
-                                        aria-label="Peso em quilogramas"
-                                      />
-                                      <span>kg</span>
-                                    </label>
-                                    <label className="essential-input-wrap">
-                                      <input
-                                        id="composer-reps"
-                                        className="essential-input"
-                                        inputMode="numeric"
-                                        type="number"
-                                        min={1}
-                                        max={999}
-                                        placeholder="10"
-                                        value={composerReps}
-                                        onChange={(event) => setComposerReps(event.target.value)}
-                                        onKeyDown={(event) => { if (event.key === 'Enter') saveSet(); }}
-                                        onFocus={(event) => event.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
-                                        aria-label="Repetições"
-                                      />
-                                      <span>reps</span>
-                                    </label>
-                                  </div>
-                                  <button className="essential-primary" type="button" data-testid="quick-set-done" data-saving={savedExerciseId === exercise.id ? 'true' : undefined} onClick={saveSet}>Salvar série</button>
-                                  {savedExerciseId === exercise.id && <output className="essential-save-feedback" aria-live="polite">Série salva</output>}
-                                </div>
-                              )
+                              <div className="essential-quick-register">
+                                <button className="essential-primary" type="button" data-testid="quick-mark-set" data-saving={savedExerciseId === exercise.id ? 'true' : undefined} onClick={saveSet}>Marcar série</button>
+                                {savedExerciseId === exercise.id && <output className="essential-save-feedback" aria-live="polite">Série salva</output>}
+                              </div>
                             )}
                             {!isQuickSession && <details className="essential-actions-disclosure">
                               <summary>Ações do exercício</summary>

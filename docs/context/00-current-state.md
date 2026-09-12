@@ -6,16 +6,15 @@
 
 ## Checkout e entrega observados
 
-- Branch `feat/41-palco-skins` a partir de `main` `59a3e41db9cfbdcde7bdc445416842cac152d93b`.
-- O slice [41 — Palco e peles](../slices/41-palco-skins.md) está `doing`; o dono autorizou aplicar Palco no app.
+- Branch `feat/42-serie-opcional` a partir de `main` `df48c17b1541e7e89034b9c073bbb421cc72b35e`.
+- O slice [42 — série opcional](../slices/42-serie-opcional.md) está `doing`.
 
 ## Produto no checkout
 
-- Anel removido. O exercício ativo mostra o número da série.
-- Três peles: Calor (default), Studio, Pulse. Seletor Aparência no menu; `localStorage gymsheet-skin`.
-- Home Palco: título grande, CTA de luz, wash por token.
+- Livre e ficha: Marcar série sem kg/reps. Sem rótulo de peso corporal.
+- Toque na linha edita kg/reps e atualiza a mesma série.
+- Alvo da ficha é dica.
 
 ## Limites
 
-- Pele não entra no backup JSON.
-- Sem recap, descanso, dock ou fonte nova.
+- Schema 2. `reps: 0` e `kg: null` significam não informado.
