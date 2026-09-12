@@ -1,7 +1,7 @@
 # Slice 42 — Série opcional
 
 - Issue / origem: pedido do dono em 2026-09-12; kg/reps opcionais, sem peso corporal
-- Status: doing
+- Status: done (#58)
 - Cabe no próximo treino? sim — marcar série no toque; preencher carga depois se quiser.
 
 ## Faz

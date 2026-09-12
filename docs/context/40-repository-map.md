@@ -10,10 +10,9 @@
 | Regras para agentes | `AGENTS.md` | rollout ou memória |
 | Estado do checkout | `docs/context/00-current-state.md` + `git` | nome de branch antigo |
 | Contratos de produto/dados | `docs/context/10-contracts.md` + `docs/design/README.md` | mock rejeitado ou snapshot Grok |
-| Processo de execução | `docs/context/20-delivery.md` + `docs/slices/README.md` | issue sem revalidação |
 | Escopo de uma mudança | `docs/slices/NN-slug.md` ativo | outro slice “doing” |
 | Validação | `docs/context/30-validation.md` + saída atual dos comandos | claim em PR/rollout antigo |
-| UI | `app/`, `docs/design/`, E2E | `components/ui/*` sem necessidade explícita |
+| UI | `app/`, `docs/design/`, E2E | código órfão sem necessidade explícita |
 | Regras de domínio/dados | `lib/` e testes | texto de uma auditoria |
 | Build/deploy | `package.json`, `scripts/`, `.github/workflows/ci.yml` | `dist/` ou `.wrangler/` gerados |
 
