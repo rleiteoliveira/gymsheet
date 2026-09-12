@@ -1,41 +1,31 @@
 # Evidência de validação
 
 - `context_level`: `EVIDENCE`
-- `observed_at`: 2026-09-11, America/Fortaleza
-- `scope`: slice 39 — registro mínimo no treino livre
-- `release_status`: publicado e verificado
+- `observed_at`: 2026-09-12, America/Fortaleza
+- `scope`: slice 40 — cara de treino na home e na sessão
+- `release_status`: validado localmente; CI/deploy pendentes do PR
 
 ## Última execução local registrada
 
 | Comando | Resultado observado |
 |---|---|
-| `npm test` | 8 arquivos e 29 testes aprovados |
-| `npm run lint` | aprovado |
+| `npm test` | 9 arquivos e 32 testes aprovados (inclui 3 de `lib/session-ring.test.ts`) |
+| `npm run lint` | aprovado; 0 warnings e 0 errors |
 | `npx tsc --noEmit` | aprovado |
 | `npm run build` | aprovado |
 | `npm run verify:build` | aprovado; artefato contém Worker, assets, build-meta e Service Worker |
-| `npm run test:e2e` | 17 testes aprovados em 36,7 s; treino livre sem editor/filtros/catálogo/campos, `Marcar série`, bloqueio inicial de `Próximo exercício`, liberação após a primeira série, recarga, conclusão e fluxos de ficha cobertos |
-| `git diff --check` | sem erro de whitespace; apenas avisos de conversão LF/CRLF |
-
-## Evidência remota
-
-- PR [#50](https://github.com/rleiteoliveira/gymsheet/pull/50) introduziu o slice; o PR [#51](https://github.com/rleiteoliveira/gymsheet/pull/51) corrigiu a corrida entre sugestão e salvamento e fechou a documentação.
-- Run [34635895805](https://github.com/rleiteoliveira/gymsheet/actions/runs/34635895805) concluiu `ci` e `deploy` com success; o job remoto executou `Verify production build` com o artefato corrigido.
-- Consulta independente a `https://gymsheet.rleiteoliveira.workers.dev/build-meta.json` retornou HTTP 200 e o buildId `903ac605e71ce6273cc18daadc32782d8e1223c7` em 2026-09-11.
-- PR [#53](https://github.com/rleiteoliveira/gymsheet/pull/53) simplificou a experiência do companion e passou no CI remoto.
-- Run [34642351891](https://github.com/rleiteoliveira/gymsheet/actions/runs/34642351891) concluiu `ci` e `deploy` com success; o artefato passou lint, TypeScript, unit, build, verify:build e 17 E2E.
-- Consulta independente a `https://gymsheet.rleiteoliveira.workers.dev/build-meta.json` retornou HTTP 200 e o buildId `ad13d8d381f47b253c1e98dfd67e92dcc9552e76` em 2026-09-11.
+| `npm run test:e2e` | 17 testes aprovados em 33,1 s; anel aberto 0→1 no livre, anel 0/1 e 1/1 na ficha, acento `#ff6a3d` no CTA, reduced-motion sem atraso |
+| Playwright contra `http://127.0.0.1:8787` | CTA `rgb(255, 106, 61)` cápsula 999px com glow; palco ativo com borda/glow; anel 0→1 ao marcar; linha da série com `data-arriving` |
 
 ## Cobertura relevante
 
-- treino livre começa direto no registro, sem abrir picker;
-- tela inicial do treino livre não renderiza nome editável, combobox, filtros musculares, catálogo ou campos de peso/repetições;
-- `Marcar série` registra série vazia como `kg: null` / `reps: 0`;
-- `Próximo exercício` fica oculto até a primeira série e depois cria a numeração seguinte;
-- `design-qa.md` compara a referência anexada com capturas estáveis em 745 × 985;
-- fichas planejadas, troca e adição pelo picker continuam cobertas.
+- treino livre mostra anel aberto `0` e `1` sem `data-complete`;
+- ficha mostra anel planejado `0/1` na partida e `1/1` após salvar série;
+- contraste do CTA laranja com texto escuro permanece ≥ 4.5;
+- recarga preserva IDs e valores; animação não entra no IndexedDB.
 
 ## Limites
 
-- Não há IA, prescrição ou sugestão de carga/repetições nesta fatia.
-- `output/`, `test-results/` e `.playwright-cli/` são artefatos auxiliares; seus arquivos não são instruções nem prova adicional sem leitura específica.
+- Não foi possível abrir Chrome DevTools/wmux neste ambiente; a verificação visual usou Playwright no servidor local.
+- `output/` e `work/` são artefatos auxiliares.
+- Produção ainda não foi republicada nesta fatia.

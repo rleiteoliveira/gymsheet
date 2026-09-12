@@ -13,7 +13,9 @@ import {
 } from 'lucide-react';
 import { Dialog } from '@base-ui/react/dialog';
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { SessionRing } from '@/app/components/session-ring';
 import { SetRecordedAt, WorkoutTimer } from '@/app/components/workout-time';
+import { sessionRingView } from '@/lib/session-ring';
 import { createBackup, loadAppState, parseBackup, restoreAppState, saveAppState } from '@/lib/storage';
 import { FALLBACK_EXERCISES, imageUrl, loadCatalog, toSnapshot } from '@/lib/catalog';
 import { filterCatalogExercises, muscleGroupsForCatalog } from '@/lib/catalog-filter';
@@ -1293,6 +1295,11 @@ export default function Home() {
                   const plannedName = exercise.planned?.exercise.name;
                   const isActive = activeExerciseId === exercise.id;
                   const setLabel = exercise.sets.length === 1 ? '1 série' : `${exercise.sets.length} séries`;
+                  const ring = sessionRingView(
+                    exercise.planned && exercise.planned.targetSets > 0
+                      ? { kind: 'planned', done: exercise.sets.length, target: exercise.planned.targetSets }
+                      : { kind: 'open', done: exercise.sets.length },
+                  );
                   return (
                     <li key={exercise.id}>
                       <article
@@ -1303,12 +1310,20 @@ export default function Home() {
                           className="essential-exercise-select"
                           type="button"
                           aria-expanded={isActive}
-                          aria-label={`${display?.name ?? 'Exercício pendente'}${exercise.sets.length ? `, ${setLabel}` : ''}`}
+                          aria-label={`${display?.name ?? 'Exercício pendente'}, ${ring.accessibleName}${exercise.status === 'skipped' ? ', pulado' : ''}`}
                           onClick={() => selectExerciseForRegister(exercise)}
                         >
                           <span className="essential-exercise-index">{exercise.order + 1}</span>
                           <span className="essential-exercise-name">{display?.name ?? 'Exercício pendente'}</span>
-                          <span className="essential-exercise-meta">{exercise.status === 'skipped' ? 'pulado' : setLabel}</span>
+                          {isActive
+                            ? (
+                              <SessionRing
+                                {...(exercise.planned && exercise.planned.targetSets > 0
+                                  ? { kind: 'planned' as const, done: exercise.sets.length, target: exercise.planned.targetSets }
+                                  : { kind: 'open' as const, done: exercise.sets.length })}
+                              />
+                            )
+                            : <span className="essential-exercise-meta">{exercise.status === 'skipped' ? 'pulado' : setLabel}</span>}
                         </button>
                         {isActive && exercise.status === 'swapped' && plannedName && plannedName !== display?.name && (
                           <p className="essential-exercise-note">Planejado: {plannedName}</p>
@@ -1317,8 +1332,12 @@ export default function Home() {
                           <>
                             {exercise.sets.length > 0 && (
                               <ul className="essential-set-list">
-                                {exercise.sets.map((set) => (
-                                  <li className="essential-set-row" key={set.id}>
+                                {exercise.sets.map((set, index) => (
+                                  <li
+                                    className="essential-set-row"
+                                    key={set.id}
+                                    data-arriving={savedExerciseId === exercise.id && index === exercise.sets.length - 1 ? 'true' : undefined}
+                                  >
                                     <span className="essential-set-label">
                                       <span>Série {set.index}</span>
                                       <SetRecordedAt savedAt={set.savedAt} sessionStartedAt={activeSession.startedAt} />
@@ -1331,7 +1350,7 @@ export default function Home() {
                             {exercise.status !== 'skipped' && (
                               isQuickSession ? (
                                 <div className="essential-quick-register">
-                                  <button className="essential-primary" type="button" data-testid="quick-mark-set" onClick={saveSet}>Marcar série</button>
+                                  <button className="essential-primary" type="button" data-testid="quick-mark-set" data-saving={savedExerciseId === exercise.id ? 'true' : undefined} onClick={saveSet}>Marcar série</button>
                                   {savedExerciseId === exercise.id && <output className="essential-save-feedback" aria-live="polite">Série salva</output>}
                                 </div>
                               ) : (
@@ -1370,7 +1389,7 @@ export default function Home() {
                                       <span>reps</span>
                                     </label>
                                   </div>
-                                  <button className="essential-primary" type="button" data-testid="quick-set-done" onClick={saveSet}>Salvar série</button>
+                                  <button className="essential-primary" type="button" data-testid="quick-set-done" data-saving={savedExerciseId === exercise.id ? 'true' : undefined} onClick={saveSet}>Salvar série</button>
                                   {savedExerciseId === exercise.id && <output className="essential-save-feedback" aria-live="polite">Série salva</output>}
                                 </div>
                               )
