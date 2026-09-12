@@ -6,18 +6,16 @@
 
 ## Checkout e entrega observados
 
-- O slice [40 — cara de treino](../slices/40-cara-de-treino.md) entrou no PR [#55](https://github.com/rleiteoliveira/gymsheet/pull/55) e está `done` após CI e deploy verdes.
-- Run [34684494232](https://github.com/rleiteoliveira/gymsheet/actions/runs/34684494232): jobs `ci` e `deploy` com success no push para `main`.
-- Produção consultada após o deploy: `https://gymsheet.rleiteoliveira.workers.dev`, HTTP 200, buildId `3e0d30a7e2cc2e873f83c489d677e43c607fe889`.
+- Branch `feat/41-palco-skins` a partir de `main` `59a3e41db9cfbdcde7bdc445416842cac152d93b`.
+- O slice [41 — Palco e peles](../slices/41-palco-skins.md) está `doing`; o dono autorizou aplicar Palco no app.
 
-## Produto publicado
+## Produto no checkout
 
-- Home: CTA cápsula com acento `#ff6a3d` e glow; data, título e Começar entram em stagger.
-- Sessão: exercício ativo como palco; anel SVG no ativo (ficha = feitas/`targetSets`; livre cresce sem meta inventada).
-- Marcar/Salvar série: press no botão, tick no anel, linha da série entra; “Série salva” permanece.
-- Schema 2 e persistência iguais; motion não grava IndexedDB.
+- Anel removido. O exercício ativo mostra o número da série.
+- Três peles: Calor (default), Studio, Pulse. Seletor Aparência no menu; `localStorage gymsheet-skin`.
+- Home Palco: título grande, CTA de luz, wash por token.
 
 ## Limites
 
-- Sem recap, descanso, dashboard, fonte nova ou imagens (#44).
-- `components/ui/*` não foi tocado.
+- Pele não entra no backup JSON.
+- Sem recap, descanso, dock ou fonte nova.
