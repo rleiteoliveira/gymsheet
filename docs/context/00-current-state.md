@@ -6,11 +6,11 @@
 
 ## Checkout e entrega observados
 
-- Branch `feat/40-cara-de-treino` a partir de `main` `81f2190e690fdae861fa0a0734e6854b17a18bd4`.
-- O slice [40 — cara de treino](../slices/40-cara-de-treino.md) está `doing`; o dono autorizou aplicar, subir e mergear em 2026-09-12.
-- Produção publicada continua a do slice 39 até o merge e o deploy desta fatia: `https://gymsheet.rleiteoliveira.workers.dev`, buildId `ad13d8d381f47b253c1e98dfd67e92dcc9552e76`.
+- O slice [40 — cara de treino](../slices/40-cara-de-treino.md) entrou no PR [#55](https://github.com/rleiteoliveira/gymsheet/pull/55) e está `done` após CI e deploy verdes.
+- Run [34684494232](https://github.com/rleiteoliveira/gymsheet/actions/runs/34684494232): jobs `ci` e `deploy` com success no push para `main`.
+- Produção consultada após o deploy: `https://gymsheet.rleiteoliveira.workers.dev`, HTTP 200, buildId `3e0d30a7e2cc2e873f83c489d677e43c607fe889`.
 
-## Produto no checkout
+## Produto publicado
 
 - Home: CTA cápsula com acento `#ff6a3d` e glow; data, título e Começar entram em stagger.
 - Sessão: exercício ativo como palco; anel SVG no ativo (ficha = feitas/`targetSets`; livre cresce sem meta inventada).
