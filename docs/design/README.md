@@ -13,17 +13,17 @@ Referências: [mock da inicial](./references/25-essencial-inicial.png), [estrutu
 | Texto | `#f2f0e8` |
 | Texto secundário | `#a4a49a` |
 | Divisor | `#30312c` |
-| Acento de treino | `#ff6a3d` — CTA da home, palco do exercício ativo, anel e confirmação de série |
-| Texto no botão de treino | `#11120f` |
+| Acento de treino | Pele Calor `#ff6a3d`; Studio creme; Pulse `#ff2d1a`. CTA, barra do palco e confirmação de série |
+| Texto no botão de treino | `--essential-heat-text` |
 | Erro | `#ff7b88`, só com texto de problema real |
 
-Marca e nome do treino: serifada local (Georgia / Times). Corpo, campos e botões: sans de sistema. Números tabulares. Sem fonte externa.
+Peles: `calor` (default), `studio`, `pulse`. Troca em Aparência no menu; `localStorage gymsheet-skin`; fora do backup.
 
-Escala: marca 18 px; título 30–32 px; corpo e botões 16 px; data e metadados 14 px. Espaçamento 4/8/12/16/24/32/48. Margem mobile 24 px. Alvo 48×48; botão principal ≥ 52 px. CTA de treino em cápsula. Coluna ≤ 560 px.
+Marca e nome do treino: serifada local (Georgia / Times), título da home ~44 px. Corpo, campos e botões: sans de sistema. Números tabulares. Sem fonte externa.
 
-Glow e degradê radial só no CTA da home e no exercício ativo. Sem verde decorativo, sombra pesada, card dentro de card, anel semanal ou ícone para cada frase.
+Escala: marca 18 px; título da home 36–44 px; corpo e botões 16 px; data e metadados 13–14 px. Espaçamento 4/8/12/16/24/32/48. Margem mobile 24 px. Alvo 48×48; CTA de treino ≥ 56 px. Coluna ≤ 560 px.
 
-O anel do exercício ativo usa séries já persistidas: ficha = feitas / `targetSets`; treino livre cresce por marca e não inventa meta.
+Glow e wash só no CTA e no exercício ativo. Sem anel, dock, card dentro de card ou métrica inventada. O progresso visível é o número da série.
 
 ## Botões
 
