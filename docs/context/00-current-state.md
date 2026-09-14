@@ -25,7 +25,9 @@
 
 - [Slice 43 — plano de treino solo](../slices/43-plano-treino-solo.md), em `doing`. O dono pediu a implementação em 2026-09-14; só a seção **Faz** (recorte A — registro confiável) foi executada.
 - Recortes B–E (palco estável, novo ciclo/tempo, histórico/desligamento, redução do legado) continuam sem slice próprio e sem implementação.
-- Issue [#62](https://github.com/rleiteoliveira/gymsheet/issues/62) e PR [#63](https://github.com/rleiteoliveira/gymsheet/pull/63) entregaram o recorte A: mesclados em 2026-09-14 com CI verde e deploy concluído. O slice 43 está `done`; B–E exigem slices novos.
+- Issue [#62](https://github.com/rleiteoliveira/gymsheet/issues/62) e PR [#63](https://github.com/rleiteoliveira/gymsheet/pull/63) entregaram o recorte A: mesclados em 2026-09-14 com CI verde e deploy concluído. O slice 43 está `done`.
+- [Slice 44 — palco estável](../slices/44-palco-estavel.md) gravado em `draft` a partir do atrito relatado pelo dono em 2026-09-14: a posição de Marcar série depende do número de séries e do exercício selecionado. É o recorte B do slice 43; nenhum slice foi promovido a `ready` e nada foi implementado.
+- Débito de aparência registrado no slice 44: o wash da inicial é recortado pela largura do `main` e soma com o glow do CTA. Fatia própria, ainda sem slice.
 - Os contratos de início, fechamento de sessão de outro dia e evolução temporal/backup permanecem inalterados; `schemaVersion` continua 2.
 
 ## Limites
