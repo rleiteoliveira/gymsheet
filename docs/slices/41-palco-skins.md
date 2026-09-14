@@ -1,7 +1,7 @@
 # Slice 41 — Palco e peles
 
 - Issue / origem: pedido do dono em 2026-09-12; anel mentia limite; avaliar Neon/Studio/Pulse no celular
-- Status: doing
+- Status: done (#60)
 - Cabe no próximo treino? sim — Começar e o número da série carregam a cara; o menu troca a pele.
 
 ## Direção
@@ -43,3 +43,8 @@ Layout Palco: home com nome grande e CTA de luz; sessão com o número da série
 ## Débito
 
 - Quando o dono escolher uma pele, uma fatia posterior pode travar e remover o seletor.
+
+## Evidência de entrega
+
+- PR [#60](https://github.com/rleiteoliveira/gymsheet/pull/60) integrado após CI verde.
+- `main` e produção confirmados no build `a3886535be5789b1407610063c0c1ac425e048e6`; o padrão visual é Neon `#b8f34a`.
