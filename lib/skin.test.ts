@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseSkin, setCountCopy } from './skin';
 
 describe('skin', () => {
-    it('accepts calor, studio and pulse and falls back to calor', () => {
+    it('accepts the three skins and falls back to the default Neon skin', () => {
         expect(parseSkin('calor')).toBe('calor');
         expect(parseSkin('studio')).toBe('studio');
         expect(parseSkin('pulse')).toBe('pulse');

@@ -1,20 +1,20 @@
 # Slice 41 — Palco e peles
 
-- Issue / origem: pedido do dono em 2026-09-12; anel mentia limite; avaliar Calor/Studio/Pulse no celular
+- Issue / origem: pedido do dono em 2026-09-12; anel mentia limite; avaliar Neon/Studio/Pulse no celular
 - Status: doing
 - Cabe no próximo treino? sim — Começar e o número da série carregam a cara; o menu troca a pele.
 
 ## Direção
 
-Layout Palco: home com nome grande e CTA de luz; sessão com o número da série no palco, sem anel. Três peles via tokens CSS (`calor`, `studio`, `pulse`). Seletor Aparência no menu, `localStorage`, fora do backup.
+Layout Palco: home com nome grande e CTA de luz; sessão com o número da série no palco, sem anel. Três peles via tokens CSS (`calor`, `studio`, `pulse`). A pele Neon é o padrão visual e mantém `calor` como identificador local compatível. Seletor Aparência no menu, `localStorage`, fora do backup.
 
 ## Faz
 
 - [x] Remover anel (`SessionRing`, CSS, e2e). Número da série no exercício ativo; ficha descreve `N de T séries` em texto.
-- [x] Tokens por pele em `data-skin`: fundo, acento, glow, wash, raio do CTA. Default Calor (`#ff6a3d`).
+- [x] Tokens por pele em `data-skin`: fundo, acento, glow, wash, raio do CTA. Default Neon (`#b8f34a`).
 - [x] Palco: título da home maior; CTA cápsula com highlight interno; exercício ativo com barra esquerda + wash, sem card extra.
 - [x] Seletor Aparência no menu (antes da nav). `localStorage gymsheet-skin`; não entra no JSON de backup.
-- [x] E2E: default Calor, contraste, marca série pelo número, troca para Pulse sem quebrar o treino, recarga mantém a pele.
+- [x] E2E: default Neon, contraste, marca série pelo número, troca para Pulse sem quebrar o treino, recarga mantém a pele.
 
 ## Não faz
 
