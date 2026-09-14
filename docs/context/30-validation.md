@@ -3,7 +3,7 @@
 - `context_level`: `EVIDENCE`
 - `observed_at`: 2026-09-14, America/Fortaleza
 - `scope`: slice 43, recorte A — registro confiável; revisão documental e evidência anterior da entrega Neon preservadas abaixo
-- `release_status`: implementação local no worktree, sem PR, sem CI remoto e sem publicação
+- `release_status`: PR [#63](https://github.com/rleiteoliveira/gymsheet/pull/63) aberto a partir de `slice-43-registro-confiavel`; sem merge, sem CI remoto verificado e sem publicação
 
 ## Execução do slice 43, recorte A — 2026-09-14
 
@@ -37,7 +37,7 @@ Cobertura nova por critério de aceite do slice:
 
 Limites desta execução:
 
-- Nenhum PR, merge, CI remoto ou deploy. `done` continua exigindo merge com CI verde; nada aqui autoriza declarar produção.
+- Evidência local. O PR #63 foi aberto, mas o resultado do CI remoto não foi verificado nesta execução. `done` continua exigindo merge com CI verde; nada aqui autoriza declarar produção.
 - O E2E prova que uma falha seguida de retry deixa uma única série, mas não observa o ID da intenção pendente (ela não é persistida antes do commit). A preservação de ID e horário no retry é provada em `lib/persistence.test.ts`, não no navegador.
 - A concorrência foi exercitada com duas abas no mesmo contexto do Playwright; não houve teste com processos ou aparelhos distintos.
 - Falhas de IndexedDB foram injetadas sobre o store `app` interceptando `IDBObjectStore.prototype`. Isso reproduz rejeição de leitura/escrita, não todos os modos de falha do navegador (cota, corrupção, bloqueio de versão).

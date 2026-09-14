@@ -25,7 +25,7 @@
 
 - [Slice 43 — plano de treino solo](../slices/43-plano-treino-solo.md), em `doing`. O dono pediu a implementação em 2026-09-14; só a seção **Faz** (recorte A — registro confiável) foi executada.
 - Recortes B–E (palco estável, novo ciclo/tempo, histórico/desligamento, redução do legado) continuam sem slice próprio e sem implementação.
-- Issue [#62](https://github.com/rleiteoliveira/gymsheet/issues/62) cobre o recorte A. Nenhum merge ou deploy realizado; `done` continua exigindo merge com CI remoto verde.
+- Issue [#62](https://github.com/rleiteoliveira/gymsheet/issues/62) e PR [#63](https://github.com/rleiteoliveira/gymsheet/pull/63) cobrem o recorte A, na branch `slice-43-registro-confiavel`. Nenhum merge ou deploy realizado; `done` continua exigindo merge com CI remoto verde.
 - Os contratos de início, fechamento de sessão de outro dia e evolução temporal/backup permanecem inalterados; `schemaVersion` continua 2.
 
 ## Limites
