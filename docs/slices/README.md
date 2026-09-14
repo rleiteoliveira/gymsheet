@@ -28,7 +28,7 @@ Antes de usar este índice, leia [o estado atual do checkout](../context/00-curr
 
 | Slice | Status | Issue / origem |
 |---|---|---|
-| [43-plano-treino-solo](./43-plano-treino-solo.md) | doing | [#62](https://github.com/rleiteoliveira/gymsheet/issues/62) — recorte A (registro confiável) |
+| [43-plano-treino-solo](./43-plano-treino-solo.md) | done | [#62](https://github.com/rleiteoliveira/gymsheet/issues/62) / PR #63 — recorte A (registro confiável) |
 | [42-serie-opcional](./42-serie-opcional.md) | done | pedido do dono em 2026-09-12 (#58) |
 | [41-palco-skins](./41-palco-skins.md) | done | pedido do dono em 2026-09-12 / ajuste Neon no PR #60 |
 | [40-cara-de-treino](./40-cara-de-treino.md) | done | pedido do dono em 2026-09-12 |
