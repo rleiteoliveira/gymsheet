@@ -29,7 +29,7 @@ Antes de usar este índice, leia [o estado atual do checkout](../context/00-curr
 | Slice | Status | Issue / origem |
 |---|---|---|
 | [42-serie-opcional](./42-serie-opcional.md) | done | pedido do dono em 2026-09-12 (#58) |
-| [41-palco-skins](./41-palco-skins.md) | doing | pedido do dono em 2026-09-12 |
+| [41-palco-skins](./41-palco-skins.md) | done | pedido do dono em 2026-09-12 / ajuste Neon no PR #60 |
 | [40-cara-de-treino](./40-cara-de-treino.md) | done | pedido do dono em 2026-09-12 |
 | [39-registro-minimo](./39-registro-minimo.md) | done | pedido do dono em 2026-09-11 |
 | [38-registro-rapido](./38-registro-rapido.md) | done | pedido do dono em 2026-09-11 |
