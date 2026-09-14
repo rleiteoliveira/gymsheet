@@ -27,7 +27,7 @@
 - Recortes B–E (palco estável, novo ciclo/tempo, histórico/desligamento, redução do legado) continuam sem slice próprio e sem implementação.
 - Issue [#62](https://github.com/rleiteoliveira/gymsheet/issues/62) e PR [#63](https://github.com/rleiteoliveira/gymsheet/pull/63) entregaram o recorte A: mesclados em 2026-09-14 com CI verde e deploy concluído. O slice 43 está `done`.
 - [Slice 44 — palco estável](../slices/44-palco-estavel.md) gravado em `draft` a partir do atrito relatado pelo dono em 2026-09-14: a posição de Marcar série depende do número de séries e do exercício selecionado. É o recorte B do slice 43; nenhum slice foi promovido a `ready` e nada foi implementado.
-- Débito de aparência registrado no slice 44: o wash da inicial é recortado pela largura do `main` e soma com o glow do CTA. Fatia própria, ainda sem slice.
+- [Slice 45 — neon contido](../slices/45-neon-contido.md), em `doing`: o wash da inicial saiu do `.essential-main` de 560px e passou para o shell de largura total, e o halo do CTA da inicial encolheu. O cartão do palco, os tokens das peles e o seletor de aparência não mudaram.
 - Os contratos de início, fechamento de sessão de outro dia e evolução temporal/backup permanecem inalterados; `schemaVersion` continua 2.
 
 ## Limites

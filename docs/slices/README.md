@@ -28,6 +28,7 @@ Antes de usar este índice, leia [o estado atual do checkout](../context/00-curr
 
 | Slice | Status | Issue / origem |
 |---|---|---|
+| [45-neon-contido](./45-neon-contido.md) | doing | pedido do dono em 2026-09-14; débito de aparência do slice 44 |
 | [44-palco-estavel](./44-palco-estavel.md) | draft | atrito do dono em 2026-09-14; recorte B do slice 43 |
 | [43-plano-treino-solo](./43-plano-treino-solo.md) | done | [#62](https://github.com/rleiteoliveira/gymsheet/issues/62) / PR #63 — recorte A (registro confiável) |
 | [42-serie-opcional](./42-serie-opcional.md) | done | pedido do dono em 2026-09-12 (#58) |

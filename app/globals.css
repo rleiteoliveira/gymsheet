@@ -227,18 +227,22 @@ a:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 .essential-shell { padding-bottom: env(safe-area-inset-bottom); }
-.essential-home { background: var(--essential-bg); }
+.essential-home {
+  background-color: var(--essential-bg);
+  background-image: radial-gradient(ellipse 110% 38% at 50% 26%, var(--essential-wash), transparent 70%);
+  background-repeat: no-repeat;
+}
 .essential-header { display: flex; align-items: center; gap: 12px; width: min(100%, 560px); margin: 0 auto; padding: calc(16px + env(safe-area-inset-top)) 24px 0; }
 .essential-brand { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 1.125rem; font-style: italic; font-weight: 600; }
 .essential-icon-button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 48px; min-height: 48px; border: 0; border-radius: 10px; color: var(--essential-text); background: transparent; cursor: pointer; }
 .essential-header > button { margin-left: -12px; }
-.essential-main { width: min(100%, 560px); margin: 0 auto; padding: clamp(64px, 9vh, 96px) 24px 48px; background: radial-gradient(ellipse 90% 50% at 50% 78%, var(--essential-wash), transparent 70%); }
+.essential-main { width: min(100%, 560px); margin: 0 auto; padding: clamp(64px, 9vh, 96px) 24px 48px; }
 .essential-date { margin: 0 0 16px; color: var(--essential-muted); font-size: .8125rem; letter-spacing: .04em; line-height: 1.5; animation: essential-home-arrive 560ms cubic-bezier(.22, 1, .36, 1) both; }
 .essential-title { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: clamp(2.25rem, 8vw, 2.75rem); font-weight: 650; line-height: .95; letter-spacing: -.03em; overflow-wrap: anywhere; animation: essential-home-arrive 560ms cubic-bezier(.22, 1, .36, 1) 70ms both; }
 .essential-selector { display: inline-flex; align-items: center; gap: 12px; max-width: 100%; min-height: 48px; border: 0; padding: 0; color: inherit; background: transparent; text-align: left; font: inherit; cursor: pointer; }
 .essential-selector span { min-width: 0; }
 .essential-selector svg { flex: 0 0 auto; }
-.essential-start { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 56px; margin-top: 36px; border: 0; border-radius: var(--essential-cta-radius); padding: 12px 16px; color: var(--essential-heat-text); background-color: var(--essential-heat); background-image: linear-gradient(180deg, color-mix(in srgb, var(--essential-heat) 88%, white), var(--essential-heat)); box-shadow: 0 10px 36px var(--essential-heat-glow), inset 0 1px 0 rgb(255 255 255 / 28%); font-size: 1.0625rem; font-weight: 650; cursor: pointer; animation: essential-home-arrive 560ms cubic-bezier(.22, 1, .36, 1) 140ms both; }
+.essential-start { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 56px; margin-top: 36px; border: 0; border-radius: var(--essential-cta-radius); padding: 12px 16px; color: var(--essential-heat-text); background-color: var(--essential-heat); background-image: linear-gradient(180deg, color-mix(in srgb, var(--essential-heat) 88%, white), var(--essential-heat)); box-shadow: 0 6px 18px color-mix(in srgb, var(--essential-heat-glow) 55%, transparent), inset 0 1px 0 rgb(255 255 255 / 28%); font-size: 1.0625rem; font-weight: 650; cursor: pointer; animation: essential-home-arrive 560ms cubic-bezier(.22, 1, .36, 1) 140ms both; }
 .essential-start:hover { background-color: color-mix(in srgb, var(--essential-heat) 84%, white); background-image: none; }
 .essential-start:disabled { cursor: wait; }
 .essential-start[data-starting="true"] { animation: essential-start-press 120ms ease-out both; }

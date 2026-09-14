@@ -5,6 +5,27 @@
 - `scope`: slice 43, recorte A — registro confiável; revisão documental e evidência anterior da entrega Neon preservadas abaixo
 - `release_status`: PR [#63](https://github.com/rleiteoliveira/gymsheet/pull/63) mesclado em `main` (`cabafbd`), CI remoto verde e deploy publicado
 
+## Execução do slice 45 — neon contido na inicial — 2026-09-14
+
+Escopo: os quatro itens de **Faz** do [slice 45](../slices/45-neon-contido.md). Só folha de estilo e teste; `app/page.tsx` e `lib/` não foram tocados.
+
+| Comando | Resultado |
+|---|---|
+| `npm test` | 11 arquivos, 50 testes, verde |
+| `npm run lint` | sem erros |
+| `npx tsc --noEmit` | sem erros |
+| `npm run build` | artefato gerado |
+| `npm run verify:build` | `Artefato válido para 474a0fb0cbb6` |
+| `npm run test:e2e` | 26 testes em chromium, verde (25 anteriores + 1 novo) |
+
+O teste novo computa, na inicial em 1280×844: `background-image` do `.essential-main` é `none`, o `.essential-home` tem `radial-gradient` com a largura da janela, o `background-color` do shell continua `rgb(17, 18, 15)` e o `box-shadow` do CTA contém `0px 6px 18px`. Depois entra na sessão e confirma que o cartão do palco mantém `0px 0px 40px` e o seu próprio `radial-gradient`.
+
+Limites desta execução:
+
+- Aprovação estética é do dono, sobre a captura `output/playwright/essencial-retomada.png`. O teste prova onde a tinta está e que o halo encolheu, não que ficou bonito.
+- As asserções de cor são específicas da pele Neon em 1280×844. Studio e Pulse continuam cobertas apenas pelo teste de persistência de pele.
+- Nenhuma medição de estabilidade de layout: isso é o slice 44, ainda em `draft`.
+
 ## Execução do slice 43, recorte A — 2026-09-14
 
 Escopo: os cinco itens de **Faz** do [slice 43](../slices/43-plano-treino-solo.md). Nada de B–E, nenhuma mudança de `schemaVersion` e nenhum arquivo da lista "não toca".

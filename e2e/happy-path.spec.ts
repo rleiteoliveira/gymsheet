@@ -1,7 +1,7 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { FALLBACK_EXERCISES, toSnapshot } from '../lib/catalog';
-import { createQuickSession, createSessionFromPlan } from '../lib/session';
+import { createQuickSession, createQuickSessionWithStarter, createSessionFromPlan } from '../lib/session';
 import type { AppState, Plan } from '../lib/types';
 
 test.use({ timezoneId: 'America/Fortaleza' });
@@ -728,4 +728,49 @@ test('correção deliberada no calendário continua gravando no registro encerra
   const corrected = (await readState(page)).sessions[0];
   expect(corrected).toMatchObject({ id: finished.id, state: 'completed', completedAt: finished.completedAt, startedAt: finished.startedAt });
   expect(corrected.exercises[0].sets[0]).toEqual(finished.exercises[0].sets[0]);
+});
+
+test('inicial sangra o gradiente na janela e contém o halo, sem mexer no palco', async ({ page }) => {
+  let seed = 0;
+  const session = createQuickSessionWithStarter('Treino de hoje', now, () => `today-${++seed}`);
+  await openApp(page, { ...empty, sessions: [session], todayPin: { kind: 'session' as const, id: session.id } });
+  await page.setViewportSize({ width: 1280, height: 844 });
+  await expect(page.getByTestId('start-workout')).toHaveText('Retomar');
+
+  const home = await page.evaluate(() => {
+    const shell = document.querySelector('.essential-home')!;
+    const main = document.querySelector('.essential-main')!;
+    return {
+      shellImage: getComputedStyle(shell).backgroundImage,
+      shellColor: getComputedStyle(shell).backgroundColor,
+      shellWidth: shell.getBoundingClientRect().width,
+      mainImage: getComputedStyle(main).backgroundImage,
+      mainWidth: main.getBoundingClientRect().width,
+      startShadow: getComputedStyle(document.querySelector('.essential-start')!).boxShadow,
+    };
+  });
+
+  // A tinta vive no shell de largura total; a coluna de 560px não pinta nada,
+  // então o gradiente não termina em bordas retas.
+  expect(home.mainImage).toBe('none');
+  expect(home.mainWidth).toBeLessThanOrEqual(560);
+  expect(home.shellImage).toContain('radial-gradient');
+  expect(home.shellWidth).toBe(1280);
+  // Contraste do slice 41 depende desta cor sólida continuar no shell.
+  expect(home.shellColor).toBe('rgb(17, 18, 15)');
+  // Halo contido: era 0px 10px 36px.
+  expect(home.startShadow).toContain('0px 6px 18px');
+
+  await page.getByTestId('start-workout').click();
+  await expect(page.locator('.essential-exercise.active')).toBeVisible();
+  const stage = await page.evaluate(() => {
+    const card = document.querySelector('.essential-exercise.active')!;
+    return {
+      shadow: getComputedStyle(card).boxShadow,
+      image: getComputedStyle(card).backgroundImage,
+    };
+  });
+  // O cartão do palco não entra neste slice.
+  expect(stage.shadow).toContain('0px 0px 40px');
+  expect(stage.image).toContain('radial-gradient');
 });
