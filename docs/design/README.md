@@ -13,11 +13,11 @@ Referências: [mock da inicial](./references/25-essencial-inicial.png), [estrutu
 | Texto | `#f2f0e8` |
 | Texto secundário | `#a4a49a` |
 | Divisor | `#30312c` |
-| Acento de treino | Pele Calor `#ff6a3d`; Studio creme; Pulse `#ff2d1a`. CTA, barra do palco e confirmação de série |
+| Acento de treino | Pele Neon `#b8f34a`; Studio creme; Pulse `#ff2d1a`. CTA, barra do palco e confirmação de série |
 | Texto no botão de treino | `--essential-heat-text` |
 | Erro | `#ff7b88`, só com texto de problema real |
 
-Peles: `calor` (default), `studio`, `pulse`. Troca em Aparência no menu; `localStorage gymsheet-skin`; fora do backup.
+Peles: Neon (`calor`, default), `studio`, `pulse`. O identificador `calor` é preservado para manter preferências locais; troca em Aparência no menu; `localStorage gymsheet-skin`; fora do backup.
 
 Marca e nome do treino: serifada local (Georgia / Times), título da home ~44 px. Corpo, campos e botões: sans de sistema. Números tabulares. Sem fonte externa.
 

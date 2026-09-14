@@ -266,10 +266,11 @@ test('partida com movimento reduzido mostra o destino sem atraso', async ({ page
   expect((await readState(page)).sessions[0]).toMatchObject({ sourcePlanId: plan.id, sourcePlanName: plan.name, state: 'in_progress' });
 });
 
-test('aparência Pulse altera o acento e sobrevive à recarga', async ({ page }) => {
+test('aparência Neon é o padrão e Pulse sobrevive à recarga', async ({ page }) => {
   await openApp(page);
   await expect(page.locator('html')).toHaveAttribute('data-skin', 'calor');
   await page.getByRole('button', { name: 'Abrir menu', exact: true }).click();
+  await expect(page.getByTestId('skin-calor')).toHaveText('Neon');
   await page.getByTestId('skin-pulse').click();
   await expect(page.locator('html')).toHaveAttribute('data-skin', 'pulse');
   await page.keyboard.press('Escape');
@@ -479,8 +480,8 @@ test('nome longo, texto a 200%, contraste, alvos e menu em 320px e desktop', asy
     const heat = getComputedStyle(document.documentElement).getPropertyValue('--essential-heat').trim();
     return { text: ratio(date.color, background), buttonText: ratio(button.color, button.backgroundColor), control: ratio(button.backgroundColor, background), heat, buttonBackground: button.backgroundColor };
   });
-  expect(contrast.heat).toBe('#ff6a3d');
-  expect(contrast.buttonBackground).toBe('rgb(255, 106, 61)');
+  expect(contrast.heat).toBe('#b8f34a');
+  expect(contrast.buttonBackground).toBe('rgb(184, 243, 74)');
   expect(contrast.text).toBeGreaterThanOrEqual(4.5);
   expect(contrast.buttonText).toBeGreaterThanOrEqual(4.5);
   expect(contrast.control).toBeGreaterThanOrEqual(3);

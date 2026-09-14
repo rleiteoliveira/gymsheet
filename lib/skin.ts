@@ -5,7 +5,7 @@ export const SKINS = ['calor', 'studio', 'pulse'] as const;
 export type Skin = (typeof SKINS)[number];
 
 export const SKIN_OPTIONS: { id: Skin; label: string }[] = [
-    { id: 'calor', label: 'Calor' },
+    { id: 'calor', label: 'Neon' },
     { id: 'studio', label: 'Studio' },
     { id: 'pulse', label: 'Pulse' },
 ];
