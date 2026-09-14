@@ -506,3 +506,226 @@ test('catálogo indisponível mantém aviso e status acessível em Dados', async
   await expect(page.getByText('Restaurar substitui os dados deste aparelho.', { exact: true })).toBeVisible();
   await capture(page, info, 'essencial-dados');
 });
+
+const FAULT_PREFIX = 'gymsheet-fault-';
+
+/**
+ * Injects real IndexedDB failures on the owner's store. The catalog cache stays
+ * untouched, so a broken workout store never hides behind a working cache.
+ */
+async function installStorageFaults(page: Page) {
+  await page.addInitScript((prefix: string) => {
+    const blocked = (kind: string) => {
+      try {
+        return window.localStorage.getItem(prefix + kind) === '1';
+      } catch {
+        return false;
+      }
+    };
+    const originalGet = IDBObjectStore.prototype.get;
+    IDBObjectStore.prototype.get = function patchedGet(this: IDBObjectStore, query: IDBValidKey | IDBKeyRange) {
+      if (this.name === 'app' && blocked('read')) throw new DOMException('leitura bloqueada no teste', 'UnknownError');
+      return originalGet.call(this, query);
+    };
+    const originalPut = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function patchedPut(this: IDBObjectStore, value: unknown, key?: IDBValidKey) {
+      if (this.name === 'app' && blocked('write')) throw new DOMException('escrita bloqueada no teste', 'UnknownError');
+      return originalPut.call(this, value, key);
+    };
+  }, FAULT_PREFIX);
+}
+
+async function setFault(page: Page, kind: 'read' | 'write', enabled: boolean) {
+  await page.evaluate(([prefix, name, value]) => {
+    if (value === '1') window.localStorage.setItem(prefix + name, '1');
+    else window.localStorage.removeItem(prefix + name);
+  }, [FAULT_PREFIX, kind, enabled ? '1' : '0']);
+}
+
+/** Second tab over the same origin, therefore the same IndexedDB. */
+async function openSecondTab(page: Page) {
+  const tab = await page.context().newPage();
+  await tab.clock.setFixedTime(now);
+  await tab.route('**/free-exercise-db/main/dist/exercises.json', (route) => route.fulfill({ json: FALLBACK_EXERCISES.map((exercise) => ({ ...exercise, images: [] })) }));
+  await tab.route('**/free-exercise-db/main/exercises/**', (route) => route.abort());
+  await tab.goto('/');
+  await expect(tab.getByTestId('start-workout')).toBeVisible();
+  return tab;
+}
+
+test('leitura bloqueada não vira aparelho vazio: erro explícito, nenhuma escrita e recuperação', async ({ page }) => {
+  await installStorageFaults(page);
+  await openApp(page);
+  await page.getByTestId('start-workout').click();
+  await page.getByTestId('quick-mark-set').click();
+  await expect.poll(async () => (await readState(page)).sessions[0]?.exercises[0]?.sets.length).toBe(1);
+  const recorded = await readState(page);
+
+  await setFault(page, 'read', true);
+  await page.reload();
+  await expect(page.getByTestId('load-error')).toBeVisible();
+  await expect(page.getByTestId('start-workout')).toHaveCount(0);
+  await expect(page.getByTestId('retry-load')).toBeVisible();
+
+  await setFault(page, 'read', false);
+  expect(await readState(page)).toEqual(recorded);
+
+  await page.getByTestId('retry-load').click();
+  await expect(page.getByTestId('load-error')).toHaveCount(0);
+  await expect(page.getByTestId('start-workout')).toHaveText('Retomar');
+  expect(await readState(page)).toEqual(recorded);
+});
+
+test('catálogo lento não atrasa o treino nem invalida os dados locais', async ({ page }) => {
+  let releaseCatalog = () => {};
+  const catalogHeld = new Promise<void>((resolve) => { releaseCatalog = resolve; });
+  await page.clock.setFixedTime(now);
+  await page.route('**/free-exercise-db/main/dist/exercises.json', async (route) => {
+    await catalogHeld;
+    await route.fulfill({ json: FALLBACK_EXERCISES.map((exercise) => ({ ...exercise, images: [] })) });
+  });
+  await page.route('**/free-exercise-db/main/exercises/**', (route) => route.abort());
+  await page.goto('/');
+
+  await expect(page.getByTestId('start-workout')).toBeVisible();
+  await page.getByTestId('start-workout').click();
+  await page.getByTestId('quick-mark-set').click();
+  await expect.poll(async () => (await readState(page)).sessions[0]?.exercises[0]?.sets.length).toBe(1);
+  await expect(page.getByTestId('set-count')).toHaveText('1');
+
+  releaseCatalog();
+  await expect.poll(async () => (await readState(page)).sessions[0]?.exercises[0]?.sets.length).toBe(1);
+});
+
+test('falha ao marcar não anuncia salvamento e o retry preserva uma única série', async ({ page }) => {
+  await installStorageFaults(page);
+  await openApp(page);
+  await page.getByTestId('start-workout').click();
+  await page.getByTestId('quick-mark-set').click();
+  await expect(page.getByTestId('set-save-status')).toHaveText('Série salva');
+  await expect.poll(async () => (await readState(page)).sessions[0]?.exercises[0]?.sets.length).toBe(1);
+
+  await setFault(page, 'write', true);
+  await page.getByTestId('quick-mark-set').click();
+  await expect(page.getByTestId('write-error')).toBeVisible();
+  await expect(page.getByTestId('set-save-status')).toHaveText('');
+  await expect(page.getByTestId('set-count')).toHaveText('1');
+  expect((await readState(page)).sessions[0].exercises[0].sets).toHaveLength(1);
+
+  await page.getByTestId('retry-write').click();
+  await expect(page.getByTestId('write-error')).toBeVisible();
+  expect((await readState(page)).sessions[0].exercises[0].sets).toHaveLength(1);
+
+  await setFault(page, 'write', false);
+  await page.getByTestId('retry-write').click();
+  await expect(page.getByTestId('write-error')).toHaveCount(0);
+  await expect(page.getByTestId('set-count')).toHaveText('2');
+
+  const saved = (await readState(page)).sessions[0].exercises[0].sets;
+  expect(saved).toHaveLength(2);
+  expect(saved.map((set) => set.index)).toEqual([1, 2]);
+  expect(new Set(saved.map((set) => set.id)).size).toBe(2);
+  expect(saved.every((set) => set.savedAt === now.toISOString())).toBe(true);
+
+  await page.reload();
+  await page.getByTestId('start-workout').click();
+  await expect(page.getByTestId('set-count')).toHaveText('2');
+  expect((await readState(page)).sessions[0].exercises[0].sets).toEqual(saved);
+});
+
+test('falha ao finalizar mantém o treino aberto e o retry encerra uma única vez', async ({ page }) => {
+  await installStorageFaults(page);
+  await openApp(page);
+  await page.getByTestId('start-workout').click();
+  await page.getByTestId('quick-mark-set').click();
+  await expect.poll(async () => (await readState(page)).sessions[0]?.exercises[0]?.sets.length).toBe(1);
+
+  await setFault(page, 'write', true);
+  await page.getByTestId('finish-workout').click();
+  await expect(page.getByTestId('write-error')).toBeVisible();
+  await expect(page.getByRole('heading', { name: freeSessionName, exact: true })).toBeVisible();
+  await expect(page.getByTestId('start-workout')).toHaveCount(0);
+  expect((await readState(page)).sessions[0].state).toBe('in_progress');
+
+  await setFault(page, 'write', false);
+  await page.getByTestId('retry-write').click();
+  await expect(page.getByTestId('write-error')).toHaveCount(0);
+  await expect(page.getByTestId('start-workout')).toHaveText('Começar');
+
+  const completed = (await readState(page)).sessions;
+  expect(completed).toHaveLength(1);
+  expect(completed[0]).toMatchObject({ state: 'completed', completedAt: now.toISOString() });
+  expect(completed[0].exercises[0].sets).toHaveLength(1);
+});
+
+test('duas abas no mesmo armazenamento não perdem marcas confirmadas', async ({ page }) => {
+  await openApp(page);
+  await page.getByTestId('start-workout').click();
+  await page.getByTestId('quick-mark-set').click();
+  await expect.poll(async () => (await readState(page)).sessions[0]?.exercises[0]?.sets.length).toBe(1);
+
+  const second = await openSecondTab(page);
+  await expect(second.getByTestId('start-workout')).toHaveText('Retomar');
+  await second.getByTestId('start-workout').click();
+  await expect(second.getByTestId('set-count')).toHaveText('1');
+  await second.getByTestId('quick-mark-set').click();
+  await expect.poll(async () => (await readState(second)).sessions[0]?.exercises[0]?.sets.length).toBe(2);
+
+  await page.getByTestId('quick-mark-set').click();
+  await expect.poll(async () => (await readState(page)).sessions[0]?.exercises[0]?.sets.length).toBe(3);
+
+  const stored = (await readState(page)).sessions;
+  expect(stored).toHaveLength(1);
+  expect(stored[0].exercises[0].sets.map((set) => set.index)).toEqual([1, 2, 3]);
+  expect(new Set(stored[0].exercises[0].sets.map((set) => set.id)).size).toBe(3);
+
+  await page.reload();
+  await page.getByTestId('start-workout').click();
+  await expect(page.getByTestId('set-count')).toHaveText('3');
+  expect((await readState(page)).sessions).toEqual(stored);
+  await second.close();
+});
+
+test('aba obsoleta não reabre nem altera o treino que outra aba finalizou', async ({ page }) => {
+  // This tab never learns about the change on its own, so the rejection has to
+  // come from the transaction revalidating its target.
+  await page.addInitScript(() => {
+    delete (window as unknown as Record<string, unknown>).BroadcastChannel;
+  });
+  await openApp(page);
+  await page.getByTestId('start-workout').click();
+  await page.getByTestId('quick-mark-set').click();
+  await expect.poll(async () => (await readState(page)).sessions[0]?.exercises[0]?.sets.length).toBe(1);
+
+  const second = await openSecondTab(page);
+  await second.getByTestId('start-workout').click();
+  await second.getByTestId('finish-workout').click();
+  await expect.poll(async () => (await readState(second)).sessions[0]?.state).toBe('completed');
+  const finished = (await readState(second)).sessions;
+
+  await page.getByTestId('quick-mark-set').click();
+  await expect(page.getByText('Este treino já foi finalizado em outra aba.', { exact: true })).toBeVisible();
+  expect((await readState(page)).sessions).toEqual(finished);
+  expect(finished[0].exercises[0].sets).toHaveLength(1);
+  await second.close();
+});
+
+test('correção deliberada no calendário continua gravando no registro encerrado', async ({ page }) => {
+  await openApp(page);
+  await page.getByTestId('start-workout').click();
+  await page.getByTestId('quick-mark-set').click();
+  await expect.poll(async () => (await readState(page)).sessions[0]?.exercises[0]?.sets.length).toBe(1);
+  await page.getByTestId('finish-workout').click();
+  await expect.poll(async () => (await readState(page)).sessions[0]?.state).toBe('completed');
+  const finished = (await readState(page)).sessions[0];
+
+  await goTo(page, 'Calendário');
+  await page.getByRole('button', { name: 'Editar', exact: true }).click();
+  await page.getByRole('button', { name: /Exercício 1/ }).click();
+  await page.getByTestId('quick-mark-set').click();
+  await expect.poll(async () => (await readState(page)).sessions[0]?.exercises[0]?.sets.length).toBe(2);
+
+  const corrected = (await readState(page)).sessions[0];
+  expect(corrected).toMatchObject({ id: finished.id, state: 'completed', completedAt: finished.completedAt, startedAt: finished.startedAt });
+  expect(corrected.exercises[0].sets[0]).toEqual(finished.exercises[0].sets[0]);
+});

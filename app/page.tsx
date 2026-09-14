@@ -16,7 +16,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { SetRecordedAt, WorkoutTimer } from '@/app/components/workout-time';
 import { formatSetLoad } from '@/lib/set-load';
 import { parseSkin, setCountCopy, SKIN_OPTIONS, SKIN_STORAGE_KEY, type Skin } from '@/lib/skin';
-import { createBackup, loadAppState, parseBackup, restoreAppState, saveAppState } from '@/lib/storage';
+import { applyWorkoutIntent, type WorkoutIntent } from '@/lib/persistence';
+import { commitAppState, createBackup, loadAppState, parseBackup, restoreAppState, saveAppState } from '@/lib/storage';
 import { FALLBACK_EXERCISES, imageUrl, loadCatalog, toSnapshot } from '@/lib/catalog';
 import { filterCatalogExercises, muscleGroupsForCatalog } from '@/lib/catalog-filter';
 import { calendarGrid, localNoonIso, monthStart, monthTitle, parseLocalDateKey, sessionsForDate } from '@/lib/calendar';
@@ -26,7 +27,6 @@ import { computeFavoriteScores, rankCatalogExercises } from '@/lib/favorites';
 import {
   applySessionEdit,
   clonePlanExercise,
-  completeSession,
   createQuickExercise,
   createQuickSessionWithStarter,
   createSessionFromPlan,
@@ -37,6 +37,7 @@ import {
 } from '@/lib/session';
 import type {
   AppState,
+  BackupV2,
   CatalogExercise,
   CatalogSource,
   Plan,
@@ -68,6 +69,29 @@ interface PendingSessionStart {
   previousSessionId: string;
   planId: string | null;
   quickStartName?: string | null;
+}
+
+/** A write that did not reach disk. The same intent is replayed, never a new one. */
+interface PendingWrite {
+  message: string;
+  retry: () => void;
+}
+
+interface MutateOptions {
+  success?: string;
+  onCommitted?: (state: AppState) => void;
+}
+
+const STATE_CHANNEL = 'gymsheet-state';
+const WRITE_FAILURE = 'Não consegui gravar no aparelho. Nada foi perdido; tente de novo.';
+
+let stateChannel: BroadcastChannel | null = null;
+
+/** Lazily opened notification channel. It refreshes other tabs; it does not coordinate writes. */
+function stateChannelHandle(): BroadcastChannel | null {
+  if (typeof window === 'undefined' || !('BroadcastChannel' in window)) return null;
+  if (!stateChannel) stateChannel = new BroadcastChannel(STATE_CHANNEL);
+  return stateChannel;
 }
 
 const EMPTY_STATE: AppState = { plans: [], sessions: [], todayPin: null };
@@ -251,7 +275,11 @@ export default function Home() {
   const [catalog, setCatalog] = useState<CatalogExercise[]>(FALLBACK_EXERCISES);
   const [catalogMeta, setCatalogMeta] = useState<CatalogState>({ source: 'fallback' });
   const [catalogLoading, setCatalogLoading] = useState(true);
-  const [ready, setReady] = useState(false);
+  const [loadStatus, setLoadStatus] = useState<'loading' | 'ready' | 'failed'>('loading');
+  const [pendingWrite, setPendingWrite] = useState<PendingWrite | null>(null);
+  const [savingExerciseId, setSavingExerciseId] = useState<string | null>(null);
+  const inFlightSetsRef = useRef(0);
+  const ready = loadStatus === 'ready';
   const [tab, setTab] = useState<Tab>('today');
   const [folderTab, setFolderTab] = useState<FolderTab>('plans');
   const [menuOpen, setMenuOpen] = useState(false);
@@ -322,13 +350,68 @@ export default function Home() {
     setDraft(null);
   }
 
-  const mutate = useCallback((updater: (current: AppState) => AppState) => {
-    setState((current) => {
-      const next = updater(current);
-      void saveAppState(next).catch(() => setToast('Não consegui salvar localmente. Faça um backup assim que possível.'));
-      return next;
-    });
-  }, []);
+  // Other tabs only need to refresh their screen; the transaction is what keeps writes exclusive.
+  function announceStateChange() {
+    stateChannelHandle()?.postMessage('changed');
+  }
+
+  /**
+   * Single door to persistence. The domain operation runs over the freshest
+   * committed state inside one transaction, React state follows the commit, and
+   * a failure offers the very same operation again instead of a new one.
+   */
+  async function commit(
+    apply: (current: AppState) => { nextState?: AppState; stale?: string },
+    options: MutateOptions = {},
+  ): Promise<boolean> {
+    if (loadStatus !== 'ready') {
+      notify('Ainda não li os dados deste aparelho.');
+      return false;
+    }
+    try {
+      const result = await commitAppState((current) => {
+        const plan = apply(current);
+        return { nextState: plan.nextState, outcome: plan.stale ?? null };
+      });
+      setState(result.state);
+      setPendingWrite(null);
+      announceStateChange();
+      if (result.outcome) {
+        // Another tab moved the target. Reconcile the screen instead of rewriting it.
+        notify(result.outcome);
+        return false;
+      }
+      options.onCommitted?.(result.state);
+      if (options.success) notify(options.success);
+      return true;
+    } catch {
+      setPendingWrite({ message: WRITE_FAILURE, retry: () => void commit(apply, options) });
+      return false;
+    }
+  }
+
+  function mutate(updater: (current: AppState) => AppState, options: MutateOptions = {}) {
+    return commit((current) => ({ nextState: updater(current) }), options);
+  }
+
+  function runIntent(intent: WorkoutIntent, options: MutateOptions = {}) {
+    return commit((current) => {
+      const result = applyWorkoutIntent(current, intent);
+      return { nextState: result.nextState, stale: result.status === 'stale' ? result.reason : undefined };
+    }, options);
+  }
+
+  const readLocalState = useCallback(
+    () => loadAppState()
+      .then((stored) => {
+        setState(stored);
+        setPendingWrite(null);
+        setLoadStatus('ready');
+      })
+      // An unreadable store is not an empty store: refuse to write over it.
+      .catch(() => setLoadStatus('failed')),
+    [],
+  );
 
   const refreshCatalog = useCallback(async () => {
     setCatalogLoading(true);
@@ -340,21 +423,27 @@ export default function Home() {
 
   useEffect(() => {
     let mounted = true;
-    void Promise.all([loadAppState(), loadCatalog()])
-      .then(([storedState, catalogResult]) => {
+    // The owner's data and the remote catalog load apart: a slow or broken
+    // catalog must never delay the workout nor look like an empty device.
+    void readLocalState();
+    void loadCatalog()
+      .then((result) => {
         if (!mounted) return;
-        setState(storedState);
-        setCatalog(catalogResult.exercises);
-        setCatalogMeta({ source: catalogResult.source, savedAt: catalogResult.savedAt, error: catalogResult.error });
+        setCatalog(result.exercises);
+        setCatalogMeta({ source: result.source, savedAt: result.savedAt, error: result.error });
         setCatalogLoading(false);
-        setReady(true);
       })
       .catch(() => {
-        if (!mounted) return;
-        setCatalogLoading(false);
-        setReady(true);
-        notify('Comecei com um espaço local novo.');
+        if (mounted) setCatalogLoading(false);
       });
+
+    const channel = stateChannelHandle();
+    const onStateMessage = () => {
+      void loadAppState()
+        .then((next) => { if (mounted) setState(next); })
+        .catch(() => undefined);
+    };
+    channel?.addEventListener('message', onStateMessage);
 
     let disposeServiceWorker: (() => void) | undefined;
     if ('serviceWorker' in navigator) {
@@ -425,12 +514,13 @@ export default function Home() {
     window.visualViewport?.addEventListener('resize', updateViewport);
     return () => {
       mounted = false;
+      channel?.removeEventListener('message', onStateMessage);
       disposeServiceWorker?.();
       serviceWorkerRegistrationRef.current = null;
       reloadAfterServiceWorkerUpdateRef.current = false;
       window.visualViewport?.removeEventListener('resize', updateViewport);
     };
-  }, [notify]);
+  }, [readLocalState]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -503,9 +593,10 @@ export default function Home() {
   }
 
   function chooseWorkout(plan?: Plan) {
-    mutate((current) => ({ ...current, todayPin: plan ? { kind: 'plan', id: plan.id } : null }));
     setModal(null);
-    notify(plan ? `${plan.name} escolhido para hoje.` : 'Treino livre escolhido.');
+    void mutate((current) => ({ ...current, todayPin: plan ? { kind: 'plan', id: plan.id } : null }), {
+      success: plan ? `${plan.name} escolhido para hoje.` : 'Treino livre escolhido.',
+    });
   }
 
   function enterSession(session: Session) {
@@ -545,30 +636,27 @@ export default function Home() {
       return;
     }
 
+    // Identity and start instant are minted once, outside the transaction and
+    // outside any React updater that the runtime may replay.
+    const session = createQuickSessionWithStarter(null, now, makeId);
     runStartTransition(() => {
-      const session = createQuickSessionWithStarter(null, now, makeId);
-      mutate((current) => ({
-        ...current,
-        sessions: [...current.sessions, session],
-        todayPin: { kind: 'session', id: session.id },
-      }));
-      enterSession(session);
-      setModal(null);
-      notify('Treino começou. Registre a primeira série.');
+      void runIntent({ kind: 'start-session', session, supersedes: null }, {
+        success: 'Treino começou. Registre a primeira série.',
+        onCommitted: () => {
+          enterSession(session);
+          setModal(null);
+        },
+      });
     });
   }
 
   function addQuickExercise() {
     if (!activeSession || activeSession.sourcePlanId !== null || activeSession.state !== 'in_progress') return;
     const next = createQuickExercise(activeSession.exercises.length, makeId);
-    mutate((current) => ({
-      ...current,
-      sessions: current.sessions.map((session) =>
-        session.id === activeSession.id ? applySessionEdit(session, { type: 'add', exercise: next }) : session,
-      ),
-    }));
-    selectExerciseForRegister(next);
-    notify('Próximo exercício adicionado.');
+    void runIntent({ kind: 'add-exercise', sessionId: activeSession.id, exercise: next, expectedState: activeSession.state }, {
+      success: 'Próximo exercício adicionado.',
+      onCommitted: () => selectExerciseForRegister(next),
+    });
   }
 
   function togglePickerMuscle(groupId: string) {
@@ -582,21 +670,19 @@ export default function Home() {
       notify('Finalize ou retome a sessão atual antes de trocar o pin.');
       return;
     }
-    mutate((current) => ({ ...current, todayPin: { kind: 'plan', id: planId } }));
-    notify('Ficha fixada.');
+    void mutate((current) => ({ ...current, todayPin: { kind: 'plan', id: planId } }), { success: 'Ficha fixada.' });
   }
 
   function clearPin() {
-    mutate((current) => ({ ...current, todayPin: null }));
-    notify('Ficha desafixada.');
+    void mutate((current) => ({ ...current, todayPin: null }), { success: 'Ficha desafixada.' });
   }
 
-  function notifySessionChange(session: Session, currentDayMessage: string) {
+  function notifySessionChange(session: Session, currentDayMessage: string | null) {
     if (localDateKey(session.startedAt) !== localDateKey(new Date())) {
       notify(`Correção salva em ${formatDateKeyLabel(localDateKey(session.startedAt))}.`);
       return;
     }
-    notify(currentDayMessage);
+    if (currentDayMessage) notify(currentDayMessage);
   }
 
   function openSession(sessionId: string) {
@@ -624,16 +710,24 @@ export default function Home() {
     const isToday = retroactiveDateKey === todayKey;
     const startedAt = isToday ? new Date() : new Date(localNoonIso(retroactiveDateKey));
     const session = createSessionFromPlan(plan, startedAt, makeId);
-    mutate((current) => ({
-      ...current,
-      sessions: [...current.sessions, session],
-      todayPin: isToday ? { kind: 'session', id: session.id } : current.todayPin,
-    }));
+    const dateKey = retroactiveDateKey;
     setRetroactiveDateKey(null);
-    setCalendarSelectedDateKey(retroactiveDateKey);
-    setCalendarCursor(monthStart(parseLocalDateKey(retroactiveDateKey)));
-    openSession(session.id);
-    notify(isToday ? 'Sessão criada para hoje.' : `Sessão criada em ${formatDateKeyLabel(retroactiveDateKey)} para correção.`);
+    void mutate(
+      (current) => current.sessions.some((item) => item.id === session.id) ? current : ({
+        ...current,
+        sessions: [...current.sessions, session],
+        todayPin: isToday ? { kind: 'session', id: session.id } : current.todayPin,
+      }),
+      {
+        success: isToday ? 'Sessão criada para hoje.' : `Sessão criada em ${formatDateKeyLabel(dateKey)} para correção.`,
+        onCommitted: (next) => {
+          setCalendarSelectedDateKey(dateKey);
+          setCalendarCursor(monthStart(parseLocalDateKey(dateKey)));
+          const created = next.sessions.find((item) => item.id === session.id);
+          if (created) enterSession(created);
+        },
+      },
+    );
   }
 
   function startSession(plan?: Plan) {
@@ -650,15 +744,12 @@ export default function Home() {
       });
       return;
     }
+    const session = createSessionFromPlan(selectedPlan, new Date(), makeId);
     runStartTransition(() => {
-      const session = createSessionFromPlan(selectedPlan, new Date(), makeId);
-      mutate((current) => ({
-        ...current,
-        sessions: [...current.sessions, session],
-        todayPin: { kind: 'session', id: session.id },
-      }));
-      enterSession(session);
-      notify(selectedPlan ? `Sessão ${selectedPlan.name} começou.` : 'Sessão vazia começou.');
+      void runIntent({ kind: 'start-session', session, supersedes: null }, {
+        success: selectedPlan ? `Sessão ${selectedPlan.name} começou.` : 'Sessão vazia começou.',
+        onCommitted: () => enterSession(session),
+      });
     });
   }
 
@@ -678,24 +769,19 @@ export default function Home() {
     const isQuickStart = quickStartName !== undefined;
     const previousSessionId = pendingSessionStart.previousSessionId;
     setPendingSessionStart(null);
+    const now = new Date();
+    const nextSession = isQuickStart
+      ? createQuickSessionWithStarter(quickStartName ?? null, now, makeId)
+      : createSessionFromPlan(selectedPlan, now, makeId);
     runStartTransition(() => {
-      const now = new Date();
-      const nextSession = isQuickStart
-        ? createQuickSessionWithStarter(quickStartName ?? null, now, makeId)
-        : createSessionFromPlan(selectedPlan, now, makeId);
-      mutate((current) => ({
-        ...current,
-        sessions: [
-          ...current.sessions.map((session) =>
-            session.id === previousSessionId ? completeSession(session, now) : session,
-          ),
-          nextSession,
-        ],
-        todayPin: { kind: 'session', id: nextSession.id },
-      }));
-      enterSession(nextSession);
-      setModal(null);
-      notify(isQuickStart ? 'Treino começou hoje. Registre a primeira série.' : selectedPlan ? `Sessão ${selectedPlan.name} começou hoje.` : 'Sessão vazia começou hoje.');
+      // Closing the previous session and opening the new one is one transaction.
+      void runIntent({ kind: 'start-session', session: nextSession, supersedes: previousSessionId }, {
+        success: isQuickStart ? 'Treino começou hoje. Registre a primeira série.' : selectedPlan ? `Sessão ${selectedPlan.name} começou hoje.` : 'Sessão vazia começou hoje.',
+        onCommitted: () => {
+          enterSession(nextSession);
+          setModal(null);
+        },
+      });
     });
   }
 
@@ -717,20 +803,30 @@ export default function Home() {
 
   function saveSet() {
     if (!activeSession || !activeExerciseId) return;
-    const now = new Date().toISOString();
-    mutate((current) => ({
-      ...current,
-      sessions: current.sessions.map((session) => {
-        if (session.id !== activeSession.id) return session;
-        const exercise = session.exercises.find((item) => item.id === activeExerciseId);
-        if (!exercise) return session;
-        const set: SetRecord = { id: makeId(), index: exercise.sets.length + 1, kg: null, reps: 0, savedAt: now };
-        return applySessionEdit(session, { type: 'save-set', exerciseId: activeExerciseId, set });
-      }),
-    }));
+    const session = activeSession;
+    const exerciseId = activeExerciseId;
+    // The mark carries its own identity and instant: a retry replays this same
+    // mark instead of creating another one.
+    const intent: WorkoutIntent = {
+      kind: 'mark-set',
+      sessionId: session.id,
+      exerciseId,
+      setId: makeId(),
+      savedAt: new Date().toISOString(),
+      expectedState: session.state,
+    };
     setEditingSetId(null);
-    setSavedExerciseId(activeExerciseId);
-    notifySessionChange(activeSession, 'Série salva.');
+    inFlightSetsRef.current += 1;
+    setSavingExerciseId(exerciseId);
+    void runIntent(intent, {
+      onCommitted: () => {
+        setSavedExerciseId(exerciseId);
+        notifySessionChange(session, null);
+      },
+    }).finally(() => {
+      inFlightSetsRef.current -= 1;
+      if (inFlightSetsRef.current === 0) setSavingExerciseId(null);
+    });
   }
 
   function updateSetValues() {
@@ -745,51 +841,71 @@ export default function Home() {
       notify('Informe um peso válido ou deixe em branco.');
       return;
     }
-    mutate((current) => ({
-      ...current,
-      sessions: current.sessions.map((session) =>
-        session.id !== activeSession.id
-          ? session
-          : applySessionEdit(session, {
-            type: 'update-set',
-            exerciseId: activeExerciseId,
-            setId: editingSetId,
-            kg,
-            reps,
-          }),
-      ),
-    }));
-    setEditingSetId(null);
-    notifySessionChange(activeSession, 'Série atualizada.');
+    const sessionId = activeSession.id;
+    const exerciseId = activeExerciseId;
+    const setId = editingSetId;
+    void mutate(
+      (current) => ({
+        ...current,
+        sessions: current.sessions.map((session) =>
+          session.id !== sessionId
+            ? session
+            : applySessionEdit(session, { type: 'update-set', exerciseId, setId, kg, reps }),
+        ),
+      }),
+      {
+        onCommitted: (next) => {
+          setEditingSetId(null);
+          const updated = next.sessions.find((session) => session.id === sessionId);
+          if (updated) notifySessionChange(updated, 'Série atualizada.');
+        },
+      },
+    );
   }
 
   function markSkipped(exerciseId: string) {
-    const target = state.sessions.find((session) => session.id === sessionViewId);
-    const skipped = target ? applySessionEdit(target, { type: 'skip', exerciseId }) : undefined;
-    mutate((current) => ({
-      ...current,
-      sessions: current.sessions.map((session) =>
-        session.id !== sessionViewId ? session : applySessionEdit(session, { type: 'skip', exerciseId }),
-      ),
-    }));
-    const next = skipped?.exercises.find((exercise) => exercise.status === null);
-    if (next) selectExerciseForRegister(next);
-    else if (skipped) enterSession(skipped);
-    if (target) notifySessionChange(target, 'Exercício marcado como pulado.');
+    const sessionId = sessionViewId;
+    if (!sessionId) return;
+    void mutate(
+      (current) => ({
+        ...current,
+        sessions: current.sessions.map((session) =>
+          session.id !== sessionId ? session : applySessionEdit(session, { type: 'skip', exerciseId }),
+        ),
+      }),
+      {
+        onCommitted: (next) => {
+          const skipped = next.sessions.find((session) => session.id === sessionId);
+          if (!skipped) return;
+          const pending = skipped.exercises.find((exercise) => exercise.status === null);
+          if (pending) selectExerciseForRegister(pending);
+          else enterSession(skipped);
+          notifySessionChange(skipped, 'Exercício marcado como pulado.');
+        },
+      },
+    );
   }
 
   function undoExercise(exerciseId: string) {
-    const target = state.sessions.find((session) => session.id === sessionViewId);
-    const undone = target ? applySessionEdit(target, { type: 'undo', exerciseId }) : undefined;
-    mutate((current) => ({
-      ...current,
-      sessions: current.sessions.map((session) =>
-        session.id !== sessionViewId ? session : applySessionEdit(session, { type: 'undo', exerciseId }),
-      ),
-    }));
-    const restored = undone?.exercises.find((exercise) => exercise.id === exerciseId);
-    if (restored) selectExerciseForRegister(restored);
-    if (target) notifySessionChange(target, 'Status desfeito.');
+    const sessionId = sessionViewId;
+    if (!sessionId) return;
+    void mutate(
+      (current) => ({
+        ...current,
+        sessions: current.sessions.map((session) =>
+          session.id !== sessionId ? session : applySessionEdit(session, { type: 'undo', exerciseId }),
+        ),
+      }),
+      {
+        onCommitted: (next) => {
+          const undone = next.sessions.find((session) => session.id === sessionId);
+          if (!undone) return;
+          const restored = undone.exercises.find((exercise) => exercise.id === exerciseId);
+          if (restored) selectExerciseForRegister(restored);
+          notifySessionChange(undone, 'Status desfeito.');
+        },
+      },
+    );
   }
 
   function finishSession() {
@@ -801,34 +917,43 @@ export default function Home() {
       notify('Salve ao menos uma série nos exercícios trocados ou adicionados.');
       return;
     }
-    const completedAt = new Date();
-    mutate((current) => ({
-      ...current,
-      todayPin: current.todayPin?.kind === 'session' && current.todayPin.id === activeSession.id ? null : current.todayPin,
-      sessions: current.sessions.map((session) =>
-        session.id !== activeSession.id ? session : completeSession(session, completedAt),
-      ),
-    }));
-    setSessionViewId(null);
-    setActiveExerciseId(null);
-    setTab('today');
-    notifySessionChange(activeSession, 'Sessão finalizada e salva.');
+    const session = activeSession;
+    const intent: WorkoutIntent = {
+      kind: 'finish-session',
+      sessionId: session.id,
+      completedAt: new Date().toISOString(),
+    };
+    // The session only leaves the screen after the transaction closes it.
+    void runIntent(intent, {
+      onCommitted: () => {
+        setSessionViewId(null);
+        setActiveExerciseId(null);
+        setTab('today');
+        notifySessionChange(session, 'Sessão finalizada e salva.');
+      },
+    });
   }
 
   function discardSession(sessionId?: string) {
     const targetId = sessionId ?? activeSession?.id;
     const target = targetId ? state.sessions.find((session) => session.id === targetId) : undefined;
     if (!target || !window.confirm('Descartar esta sessão? Isso não pode ser desfeito.')) return;
-    mutate((current) => ({
-      ...current,
-      todayPin: current.todayPin?.kind === 'session' && current.todayPin.id === target.id ? null : current.todayPin,
-      sessions: current.sessions.filter((session) => session.id !== target.id),
-    }));
-    if (sessionViewId === target.id) {
-      setSessionViewId(null);
-      setActiveExerciseId(null);
-    }
-    notify('Sessão descartada.');
+    void mutate(
+      (current) => ({
+        ...current,
+        todayPin: current.todayPin?.kind === 'session' && current.todayPin.id === target.id ? null : current.todayPin,
+        sessions: current.sessions.filter((session) => session.id !== target.id),
+      }),
+      {
+        success: 'Sessão descartada.',
+        onCommitted: () => {
+          if (sessionViewId === target.id) {
+            setSessionViewId(null);
+            setActiveExerciseId(null);
+          }
+        },
+      },
+    );
   }
 
   function savePlan() {
@@ -855,21 +980,32 @@ export default function Home() {
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
     };
-    mutate((current) => ({ ...current, plans: existing ? current.plans.map((item) => item.id === plan.id ? plan : item) : [...current.plans, plan] }));
     setModal(null);
     setDraft(null);
-    notify(existing ? 'Ficha atualizada.' : 'Ficha criada.');
+    void mutate(
+      // Existence is checked against the committed state, so a retry never duplicates the plan.
+      (current) => {
+        const known = current.plans.some((item) => item.id === plan.id);
+        return {
+          ...current,
+          plans: known ? current.plans.map((item) => item.id === plan.id ? plan : item) : [...current.plans, plan],
+        };
+      },
+      { success: existing ? 'Ficha atualizada.' : 'Ficha criada.' },
+    );
   }
 
   function deletePlan(planId: string) {
     const plan = state.plans.find((item) => item.id === planId);
     if (!plan || !window.confirm(`Excluir a ficha “${plan.name}”?`)) return;
-    mutate((current) => ({
-      ...current,
-      plans: current.plans.filter((item) => item.id !== planId),
-      todayPin: current.todayPin?.kind === 'plan' && current.todayPin.id === planId ? null : current.todayPin,
-    }));
-    notify('Ficha excluída.');
+    void mutate(
+      (current) => ({
+        ...current,
+        plans: current.plans.filter((item) => item.id !== planId),
+        todayPin: current.todayPin?.kind === 'plan' && current.todayPin.id === planId ? null : current.todayPin,
+      }),
+      { success: 'Ficha excluída.' },
+    );
   }
 
   function handleCatalogPick(exercise: CatalogExercise) {
@@ -894,23 +1030,29 @@ export default function Home() {
 
     if (!sessionViewId) return;
     if (pickerMode === 'swap' && pickerSessionExerciseId) {
-      mutate((current) => ({
-        ...current,
-        sessions: current.sessions.map((session) =>
-          session.id !== sessionViewId
-            ? session
-            : applySessionEdit(session, {
-              type: 'swap',
-              exerciseId: pickerSessionExerciseId,
-              performed: toSnapshot(exercise),
-            }),
-        ),
-      }));
-      setActiveExerciseId(pickerSessionExerciseId);
-      setComposerKg('');
-      setComposerReps(activeSession?.sourcePlanId === null ? '' : '10');
+      const sessionId = sessionViewId;
+      const exerciseId = pickerSessionExerciseId;
+      const performed = toSnapshot(exercise);
       setModal(null);
-      if (activeSession) notifySessionChange(activeSession, 'Exercício trocado. Registre a primeira série.');
+      void mutate(
+        (current) => ({
+          ...current,
+          sessions: current.sessions.map((session) =>
+            session.id !== sessionId
+              ? session
+              : applySessionEdit(session, { type: 'swap', exerciseId, performed }),
+          ),
+        }),
+        {
+          onCommitted: (next) => {
+            setActiveExerciseId(exerciseId);
+            setComposerKg('');
+            setComposerReps(activeSession?.sourcePlanId === null ? '' : '10');
+            const updated = next.sessions.find((session) => session.id === sessionId);
+            if (updated) notifySessionChange(updated, 'Exercício trocado. Registre a primeira série.');
+          },
+        },
+      );
       return;
     }
 
@@ -922,17 +1064,17 @@ export default function Home() {
       status: 'added',
       sets: [],
     };
-    mutate((current) => ({
-      ...current,
-      sessions: current.sessions.map((session) =>
-        session.id !== sessionViewId ? session : applySessionEdit(session, { type: 'add', exercise: next }),
-      ),
-    }));
-    setActiveExerciseId(next.id);
-    setComposerKg('');
-    setComposerReps(activeSession?.sourcePlanId === null ? '' : '10');
+    const sessionId = sessionViewId;
     setModal(null);
-    if (activeSession) notifySessionChange(activeSession, 'Exercício adicionado. Registre a primeira série.');
+    void runIntent({ kind: 'add-exercise', sessionId, exercise: next, expectedState: activeSession?.state ?? 'in_progress' }, {
+      onCommitted: (committed) => {
+        setActiveExerciseId(next.id);
+        setComposerKg('');
+        setComposerReps(activeSession?.sourcePlanId === null ? '' : '10');
+        const updated = committed.sessions.find((session) => session.id === sessionId);
+        if (updated) notifySessionChange(updated, 'Exercício adicionado. Registre a primeira série.');
+      },
+    });
   }
 
   function moveDraftExercise(index: number, direction: -1 | 1) {
@@ -962,16 +1104,24 @@ export default function Home() {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
+    let backup: BackupV2;
     try {
-      const backup = parseBackup(JSON.parse(await file.text()));
-      const planCount = backup.data.plans.length;
-      const sessionCount = backup.data.sessions.length;
-      if (!window.confirm(`Restaurar ${planCount} ficha(s) e ${sessionCount} sessão(ões)? Os dados atuais serão substituídos.`)) return;
-      await restoreAppState(backup);
-      applyLoadedState(backup.data);
-      notify('Backup restaurado.');
+      backup = parseBackup(JSON.parse(await file.text()));
     } catch {
       notify('Arquivo inválido. Nenhum dado foi alterado.');
+      return;
+    }
+    const planCount = backup.data.plans.length;
+    const sessionCount = backup.data.sessions.length;
+    if (!window.confirm(`Restaurar ${planCount} ficha(s) e ${sessionCount} sessão(ões)? Os dados atuais serão substituídos.`)) return;
+    try {
+      await restoreAppState(backup);
+      applyLoadedState(backup.data);
+      announceStateChange();
+      notify('Backup restaurado.');
+    } catch {
+      // A write that never reached disk is reported as a failure, not as a restore.
+      notify('Não consegui gravar a restauração. Os dados atuais continuam no aparelho.');
     }
   }
 
@@ -981,6 +1131,7 @@ export default function Home() {
       const demoState = buildDemoState();
       await saveAppState(demoState);
       applyLoadedState(demoState);
+      announceStateChange();
       notify('Diário de exemplo carregado.');
     } catch {
       notify('Não consegui carregar o diário de exemplo. Nenhum dado foi alterado.');
@@ -1438,8 +1589,19 @@ export default function Home() {
                             )}
                             {exercise.status !== 'skipped' && (
                               <div className="essential-quick-register">
-                                <button className="essential-primary" type="button" data-testid="quick-mark-set" data-saving={savedExerciseId === exercise.id ? 'true' : undefined} onClick={saveSet}>Marcar série</button>
-                                {savedExerciseId === exercise.id && <output className="essential-save-feedback" aria-live="polite">Série salva</output>}
+                                <button
+                                  className="essential-primary"
+                                  type="button"
+                                  data-testid="quick-mark-set"
+                                  data-saving={savingExerciseId === exercise.id ? 'true' : undefined}
+                                  aria-busy={savingExerciseId === exercise.id}
+                                  onClick={saveSet}
+                                >
+                                  Marcar série
+                                </button>
+                                <output className="essential-save-feedback" data-testid="set-save-status" aria-live="polite">
+                                  {savingExerciseId === exercise.id ? 'Salvando' : savedExerciseId === exercise.id ? 'Série salva' : ''}
+                                </output>
                               </div>
                             )}
                             {!isQuickSession && <details className="essential-actions-disclosure">
@@ -1659,11 +1821,32 @@ export default function Home() {
     );
   }
 
+  function renderPendingWrite() {
+    if (!pendingWrite) return null;
+    return (
+      <div className="essential-retry" role="alert" data-testid="write-error">
+        <span>{pendingWrite.message}</span>
+        <button className="essential-secondary" type="button" data-testid="retry-write" onClick={pendingWrite.retry}>Tentar de novo</button>
+      </div>
+    );
+  }
+
+  if (loadStatus === 'failed') {
+    // An unreadable store is never presented as a first use, and nothing is written over it.
+    return (
+      <main className="essential-page essential-loading" data-testid="load-error">
+        <h1 className="essential-page-title">GymSheet</h1>
+        <p className="essential-exercise-note">Não consegui ler os dados deste aparelho. Nada foi apagado e nada será gravado até a leitura funcionar.</p>
+        <button className="essential-primary" type="button" data-testid="retry-load" onClick={() => { setLoadStatus('loading'); void readLocalState(); }}>Tentar de novo</button>
+      </main>
+    );
+  }
+
   if (!ready) {
     return <main className="essential-page essential-loading"><h1 className="essential-page-title">GymSheet</h1><p className="essential-exercise-note">Carregando os dados locais.</p></main>;
   }
 
-  if (sessionViewId) return <>{renderSession()}{renderWorkoutPickerModal()}{renderPlanModal()}{renderPickerModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{toast && <output className="essential-toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</>;
+  if (sessionViewId) return <>{renderSession()}{renderWorkoutPickerModal()}{renderPlanModal()}{renderPickerModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{renderPendingWrite()}{toast && <output className="essential-toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</>;
 
-  return <div ref={shellRef} className="app-shell essential-shell essential-home">{renderHeader()}{tab === 'today' && renderToday()}{tab === 'folder' && renderFolder()}{tab === 'week' && renderWeek()}{tab === 'data' && renderData()}{renderWorkoutPickerModal()}{renderPlanModal()}{renderPickerModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{toast && <output className="essential-toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</div>;
+  return <div ref={shellRef} className="app-shell essential-shell essential-home">{renderHeader()}{tab === 'today' && renderToday()}{tab === 'folder' && renderFolder()}{tab === 'week' && renderWeek()}{tab === 'data' && renderData()}{renderWorkoutPickerModal()}{renderPlanModal()}{renderPickerModal()}{renderPreviousSessionModal()}{renderRetroactiveSessionModal()}{renderPendingWrite()}{toast && <output className="essential-toast" aria-live="polite">{toast}</output>}{renderUpdateBanner()}</div>;
 }
