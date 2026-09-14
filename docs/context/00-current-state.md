@@ -6,7 +6,7 @@
 
 ## Checkout e entrega observados
 
-- Branch `main`, `HEAD` e `origin/main` em `90f0588bc9b6e7c7a42283bd39d0b5f8eed447cd`; `git ls-remote origin refs/heads/main` confirmou o mesmo SHA em 2026-09-14. Worktree limpo antes deste planejamento; alterações atuais limitadas à documentação.
+- Branch `main`, `HEAD` e `origin/main` em `cabafbd0d26e70481c15d9ad120211e08ce2336f` (merge do PR #63, recorte A do slice 43). CI e deploy verdes na run 34900997172; `build-meta.json` publicado devolve o mesmo SHA.
 - `a3886535be5789b1407610063c0c1ac425e048e6` é a implementação do acento Neon anterior ao commit documental atual. Evidência de CI/deploy dessa entrega está registrada em `30-validation.md`; não foi reconsultada nesta revisão.
 - Limpeza de componentes e dependências órfãs executada sob pedido do dono (remoção de `components/ui/*`, `hooks/use-mobile.ts`, `lib/utils.ts`, `components.json` e 12 dependências não utilizadas).
 
@@ -25,7 +25,9 @@
 
 - [Slice 43 — plano de treino solo](../slices/43-plano-treino-solo.md), em `doing`. O dono pediu a implementação em 2026-09-14; só a seção **Faz** (recorte A — registro confiável) foi executada.
 - Recortes B–E (palco estável, novo ciclo/tempo, histórico/desligamento, redução do legado) continuam sem slice próprio e sem implementação.
-- Issue [#62](https://github.com/rleiteoliveira/gymsheet/issues/62) e PR [#63](https://github.com/rleiteoliveira/gymsheet/pull/63) cobrem o recorte A, na branch `slice-43-registro-confiavel`. Nenhum merge ou deploy realizado; `done` continua exigindo merge com CI remoto verde.
+- Issue [#62](https://github.com/rleiteoliveira/gymsheet/issues/62) e PR [#63](https://github.com/rleiteoliveira/gymsheet/pull/63) entregaram o recorte A: mesclados em 2026-09-14 com CI verde e deploy concluído. O slice 43 está `done`.
+- [Slice 44 — palco estável](../slices/44-palco-estavel.md) gravado em `draft` a partir do atrito relatado pelo dono em 2026-09-14: a posição de Marcar série depende do número de séries e do exercício selecionado. É o recorte B do slice 43; nenhum slice foi promovido a `ready` e nada foi implementado.
+- Débito de aparência registrado no slice 44: o wash da inicial é recortado pela largura do `main` e soma com o glow do CTA. Fatia própria, ainda sem slice.
 - Os contratos de início, fechamento de sessão de outro dia e evolução temporal/backup permanecem inalterados; `schemaVersion` continua 2.
 
 ## Limites

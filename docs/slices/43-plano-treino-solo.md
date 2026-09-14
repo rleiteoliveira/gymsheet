@@ -1,7 +1,7 @@
 # Slice 43 — Plano de repaginação para treino solo
 
 - Origem: pedidos do dono em 2026-09-14 para revisar a experiência, desligar funções e detalhar implementação e validação.
-- Status: doing — o dono pediu a implementação em 2026-09-14; execução limitada ao recorte A (**Faz**). Issue [#62](https://github.com/rleiteoliveira/gymsheet/issues/62), PR [#63](https://github.com/rleiteoliveira/gymsheet/pull/63).
+- Status: done — recorte A (**Faz**) mesclado em `main` por [PR #63](https://github.com/rleiteoliveira/gymsheet/pull/63) com CI verde, fechando a issue [#62](https://github.com/rleiteoliveira/gymsheet/issues/62). Os recortes B–E continuam sem slice próprio e sem implementação.
 - Cabe no próximo treino? sim — confiança na marcação, início direto e controles estáveis são problemas do percurso principal.
 - Revisão: 2026-09-14, America/Fortaleza.
 - Base observada: `main`, `HEAD` e `origin/main` locais em `90f0588bc9b6e7c7a42283bd39d0b5f8eed447cd`; `git ls-remote origin refs/heads/main` confirmou o mesmo commit. Worktree inicialmente limpo.
