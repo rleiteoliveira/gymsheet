@@ -3,7 +3,28 @@
 - `context_level`: `EVIDENCE`
 - `observed_at`: 2026-09-14, America/Fortaleza
 - `scope`: slice 43, recorte A — registro confiável; revisão documental e evidência anterior da entrega Neon preservadas abaixo
-- `release_status`: PR [#63](https://github.com/rleiteoliveira/gymsheet/pull/63) aberto a partir de `slice-43-registro-confiavel`; sem merge, sem CI remoto verificado e sem publicação
+- `release_status`: PR [#63](https://github.com/rleiteoliveira/gymsheet/pull/63) mesclado em `main` (`cabafbd`), CI remoto verde e deploy publicado
+
+## Execução do slice 45 — neon contido na inicial — 2026-09-14
+
+Escopo: os quatro itens de **Faz** do [slice 45](../slices/45-neon-contido.md). Só folha de estilo e teste; `app/page.tsx` e `lib/` não foram tocados.
+
+| Comando | Resultado |
+|---|---|
+| `npm test` | 11 arquivos, 50 testes, verde |
+| `npm run lint` | sem erros |
+| `npx tsc --noEmit` | sem erros |
+| `npm run build` | artefato gerado |
+| `npm run verify:build` | `Artefato válido para 474a0fb0cbb6` |
+| `npm run test:e2e` | 26 testes em chromium, verde (25 anteriores + 1 novo) |
+
+O teste novo computa, na inicial em 1280×844: `background-image` do `.essential-main` é `none`, o `.essential-home` tem `radial-gradient` com a largura da janela, o `background-color` do shell continua `rgb(17, 18, 15)` e o `box-shadow` do CTA contém `0px 6px 18px`. Depois entra na sessão e confirma que o cartão do palco mantém `0px 0px 40px` e o seu próprio `radial-gradient`.
+
+Limites desta execução:
+
+- Aprovação estética é do dono, sobre a captura `output/playwright/essencial-retomada.png`. O teste prova onde a tinta está e que o halo encolheu, não que ficou bonito.
+- As asserções de cor são específicas da pele Neon em 1280×844. Studio e Pulse continuam cobertas apenas pelo teste de persistência de pele.
+- Nenhuma medição de estabilidade de layout: isso é o slice 44, ainda em `draft`.
 
 ## Execução do slice 43, recorte A — 2026-09-14
 
@@ -37,12 +58,20 @@ Cobertura nova por critério de aceite do slice:
 
 Limites desta execução:
 
-- Evidência local. O PR #63 foi aberto, mas o resultado do CI remoto não foi verificado nesta execução. `done` continua exigindo merge com CI verde; nada aqui autoriza declarar produção.
+- A tabela acima é evidência local. A confirmação remota está logo abaixo, em "Entrega remota".
 - O E2E prova que uma falha seguida de retry deixa uma única série, mas não observa o ID da intenção pendente (ela não é persistida antes do commit). A preservação de ID e horário no retry é provada em `lib/persistence.test.ts`, não no navegador.
 - A concorrência foi exercitada com duas abas no mesmo contexto do Playwright; não houve teste com processos ou aparelhos distintos.
 - Falhas de IndexedDB foram injetadas sobre o store `app` interceptando `IDBObjectStore.prototype`. Isso reproduz rejeição de leitura/escrita, não todos os modos de falha do navegador (cota, corrupção, bloqueio de versão).
 - Nenhuma medição de estabilidade de layout, acessibilidade ou tempo foi feita: essas matrizes pertencem aos recortes B–D.
 - Capturas de tela não foram anexadas a esta execução além das já produzidas pela suíte existente.
+
+### Entrega remota — 2026-09-14
+
+- PR [#63](https://github.com/rleiteoliveira/gymsheet/pull/63) mesclado em `main` por `rleiteoliveira` às 21:50 UTC; merge commit `cabafbd0d26e70481c15d9ad120211e08ce2336f`.
+- CI remoto verde no head do PR (job `ci`, 1m47s) e na run de `main` após o merge: [34900997172](https://github.com/rleiteoliveira/gymsheet/actions/runs/34900997172), jobs `ci` e `deploy` com sucesso.
+- Artefato publicado confirmado: `https://gymsheet.rleiteoliveira.workers.dev/build-meta.json` devolve `buildId` `cabafbd0d26e70481c15d9ad120211e08ce2336f`, `builtAt` 2026-09-14T21:51:00Z.
+- Issue #62 fechada após o merge; a branch `slice-43-registro-confiavel` foi removida local e remotamente.
+- Limite: a verificação da publicação é a identidade do build servido. Nenhum percurso de usuário foi executado contra produção.
 
 ## Revisão documental — 2026-09-14
 
