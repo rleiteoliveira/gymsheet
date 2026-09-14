@@ -16,9 +16,17 @@ interface TreinoDb extends DBSchema {
 const DB_NAME = 'treino-de-hoje';
 const DEFAULT_STATE: AppState = { plans: [], sessions: [], todayPin: null };
 
+// Raised when the browser refuses IndexedDB. A write that never reached disk is never a success.
+export class PersistenceUnavailableError extends Error {
+  constructor() {
+    super('Armazenamento local indisponível neste navegador.');
+    this.name = 'PersistenceUnavailableError';
+  }
+}
+
 let dbPromise: Promise<IDBPDatabase<TreinoDb>> | undefined;
 
-async function getDb() {
+async function openDatabase() {
   // Keep IndexedDB browser-only. The storage module is imported by the client
   // route during the server render, while persistence starts after hydration.
   if (typeof window === 'undefined' || !('indexedDB' in window)) return null;
@@ -29,9 +37,29 @@ async function getDb() {
         if (!db.objectStoreNames.contains('app')) db.createObjectStore('app');
         if (!db.objectStoreNames.contains('catalog')) db.createObjectStore('catalog');
       },
+    }).catch((error: unknown) => {
+      // A rejected handle cannot stay cached, or the retry offered to the owner would never recover.
+      dbPromise = undefined;
+      throw error;
     });
   }
   return dbPromise;
+}
+
+// Handle for caches that may degrade without touching the owner's data.
+async function optionalDb() {
+  try {
+    return await openDatabase();
+  } catch {
+    return null;
+  }
+}
+
+// Handle for the owner's data. Absence is an explicit failure, never an empty state.
+async function requireDb() {
+  const db = await openDatabase();
+  if (!db) throw new PersistenceUnavailableError();
+  return db;
 }
 
 function normalizePlan(plan: Omit<Plan, 'emoji'> & { emoji?: string | null }): Plan {
@@ -46,23 +74,65 @@ function normalizeAppState(state: AppState): AppState {
 }
 
 export async function loadAppState(): Promise<AppState> {
-  const db = await getDb();
-  const stored = await db?.get('app', 'state');
+  const db = await requireDb();
+  const stored = await db.get('app', 'state');
   return stored ? normalizeAppState(stored) : structuredClone(DEFAULT_STATE);
 }
 
 export async function saveAppState(state: AppState): Promise<void> {
-  const db = await getDb();
-  if (db) await db.put('app', state, 'state');
+  const db = await requireDb();
+  await db.put('app', state, 'state');
+}
+
+export interface CommitPlan<T> {
+  // Omit to leave the stored state untouched, as in an already applied or rejected intent.
+  nextState?: AppState;
+  outcome: T;
+}
+
+export interface CommitResult<T> {
+  state: AppState;
+  outcome: T;
+}
+
+/**
+ * Applies a domain operation over the last committed state inside a single
+ * read/write transaction. Nothing is announced before `tx.done` resolves, so a
+ * tab can neither overwrite what another tab confirmed nor report a write that
+ * never landed.
+ */
+export async function commitAppState<T>(
+  apply: (current: AppState) => CommitPlan<T>,
+): Promise<CommitResult<T>> {
+  const db = await requireDb();
+  const tx = db.transaction('app', 'readwrite');
+  try {
+    const stored = await tx.store.get('state');
+    const current = stored ? normalizeAppState(stored) : structuredClone(DEFAULT_STATE);
+    // `apply` stays synchronous: awaiting anything else here would auto-commit the transaction.
+    const plan = apply(current);
+    if (plan.nextState) await tx.store.put(plan.nextState, 'state');
+    await tx.done;
+    return { state: plan.nextState ?? current, outcome: plan.outcome };
+  } catch (error) {
+    // Either the whole operation lands or nothing changes.
+    try {
+      tx.abort();
+    } catch {
+      // The transaction had already settled.
+    }
+    void tx.done.catch(() => undefined);
+    throw error;
+  }
 }
 
 export async function loadCatalogCache(): Promise<CatalogCache | undefined> {
-  const db = await getDb();
+  const db = await optionalDb();
   return db?.get('catalog', 'current');
 }
 
 export async function saveCatalogCache(cache: CatalogCache): Promise<void> {
-  const db = await getDb();
+  const db = await optionalDb();
   if (db) await db.put('catalog', cache, 'current');
 }
 
@@ -151,8 +221,7 @@ export function parseBackup(raw: unknown): BackupV2 {
 }
 
 export async function restoreAppState(backup: BackupV2): Promise<void> {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   const tx = db.transaction('app', 'readwrite');
   await tx.store.put(backup.data, 'state');
   await tx.done;
